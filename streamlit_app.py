@@ -160,7 +160,7 @@ elif page == "Macro Regime Model":
         st.line_chart(plot_df)
         
         st.markdown("### Raw Indicator Signals (Last 5 Days)")
-        st.dataframe(scores_df.tail(5).style.background_gradient(cmap="Reds", subset=['total_score']))
+        st.dataframe(scores_df.tail(5))
         
         st.markdown("*Note: Uses FRED datasets (M2, LEI, Spreads) and YFinance price action proxies to ensure zero look-ahead bias spanning two decades.*")
 
