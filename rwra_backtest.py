@@ -1,47 +1,16 @@
 import pandas as pd
 import numpy as np
-import yfinance as yf
 import datetime
-from dateutil.relativedelta import relativedelta
-
-def fetch_rwra_data(start_date, end_date):
-    pass # we handle this inside run_rwra_backtest now
 
 def run_rwra_backtest():
-    end_date = datetime.date.today()
-    # We attempt to pull from 2004, but pd.dropna() will enforce true inception dates (e.g. 2022 for CSHI).
-    start_date = end_date - relativedelta(years=21)
-    
-    # We must add DBMF and CSHI to exactly what we fetch from Yahoo
-    fred_series = {'T10Y2Y': 'T10Y2Y', 'HY_Spread': 'BAMLH0A0HYM2', 'Financial_Condition': 'NFCI'}
-    tickers = ['^GSPC', '^VIX', 'QQQ', 'GLD', 'SPY', 'TLT', 'DBMF', 'CSHI']
-    
     try:
-        # Native FRED fetching without pandas-datareader
-        macro_dfs = []
-        for key, series_id in fred_series.items():
-            url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
-            temp_df = pd.read_csv(url, na_values='.')
-            temp_df = temp_df.rename(columns={'DATE': 'Date', series_id: key})
-            temp_df['Date'] = pd.to_datetime(temp_df['Date'])
-            temp_df.set_index('Date', inplace=True)
-            macro_dfs.append(temp_df)
-        
-        macro_df = pd.concat(macro_dfs, axis=1)
-        macro_df = macro_df.loc[start_date.strftime("%Y-%m-%d"):end_date.strftime("%Y-%m-%d")]
-        macro_df = macro_df.ffill()
-
-        
-        market_df = yf.download(tickers, start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"))['Adj Close']
-        # Forward fill over market holidays, but do not backfill before inception
-        market_df = market_df.fillna(method='ffill')
+        macro_df = pd.read_csv('data/historical_macro.csv', index_col='Date', parse_dates=True)
+        market_df = pd.read_csv('data/historical_market.csv', index_col='Date', parse_dates=True)
         
         df = pd.merge(market_df, macro_df, left_index=True, right_index=True, how='left')
-        # WARNING: This STRICTLY enforces no simulation. The backtest will only begin 
-        # on the precise day the youngest asset (CSHI, Aug 2022) began trading.
         df = df.dropna()
     except Exception as e:
-        print(f"Error fetching data: {e}")
+        print(f"Error loading cached data: {e}")
         return None, None, None
 
     if df.empty:

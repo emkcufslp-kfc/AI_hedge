@@ -7,51 +7,21 @@ import warnings
 warnings.filterwarnings("ignore")
 
 def fetch_macro_data(start_date, end_date):
-    """Fetches macro indicators from FRED natively."""
-    fred_series = {
-        'UNRATE': 'UNRATE',                # Unemployment
-        'INDPRO': 'INDPRO',                # Ind Production
-        'RSAFS': 'RSAFS',                  # Retail Sales
-        'HY_Spread': 'BAMLH0A0HYM2',       # High Yield Spread
-        'BBB_Spread': 'BAMLC0A4CBBB',      # BBB Spread
-        'STLFSI': 'STLFSI4',               # St. Louis Fed Financial Stress
-        'M2': 'M2SL',                      # M2 Money Supply
-        'WALCL': 'WALCL',                  # Fed Balance Sheet
-        'Real_Rate': 'DFII10',             # 10Y Real Interest Rate
-        'Dollar_Idx': 'DTWEXBGS'           # Dollar Index
-    }
-    
+    """Fetches macro indicators from local FRED cache."""
     try:
-        # Native FRED fetching without pandas-datareader
-        macro_dfs = []
-        for key, series_id in fred_series.items():
-            url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
-            temp_df = pd.read_csv(url, na_values='.')
-            temp_df = temp_df.rename(columns={'DATE': 'Date', series_id: key})
-            temp_df['Date'] = pd.to_datetime(temp_df['Date'])
-            temp_df.set_index('Date', inplace=True)
-            macro_dfs.append(temp_df)
-            
-        df = pd.concat(macro_dfs, axis=1)
-        df = df.loc[start_date:end_date]
-        df = df.ffill()
-        return df
-
+        df = pd.read_csv('data/historical_macro.csv', index_col='Date', parse_dates=True)
+        return df.loc[start_date:end_date]
     except Exception as e:
-        print(f"Error fetching FRED data: {e}")
-        # Fallback empty dataframe if API fails
+        print(f"Error loading local FRED cache: {e}")
         return pd.DataFrame()
 
 def fetch_market_data(start_date, end_date):
-    """Fetches asset data from Yahoo Finance."""
-    tickers = ['^GSPC', '^VIX', 'QQQ', 'GLD', 'SPY', 'TLT', 'SHV']
-    
+    """Fetches asset data from local Yahoo Finance cache."""
     try:
-        data = yf.download(tickers, start=start_date, end=end_date)['Adj Close']
-        data = data.fillna(method='ffill')
-        return data
+        df = pd.read_csv('data/historical_market.csv', index_col='Date', parse_dates=True)
+        return df.loc[start_date:end_date]
     except Exception as e:
-        print(f"Error fetching YF data: {e}")
+        print(f"Error loading local YF cache: {e}")
         return pd.DataFrame()
 
 def compute_regime_score(macro_df, market_df):
