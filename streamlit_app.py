@@ -159,8 +159,46 @@ elif page == "Macro Regime Model":
         })
         st.line_chart(plot_df)
         
-        st.markdown("### Raw Indicator Signals (Last 5 Days)")
-        st.dataframe(scores_df.tail(5))
+        st.markdown("---")
+        
+        with st.expander("📚 How the Macro Regime Strategy Works", expanded=False):
+            st.markdown("""
+            **The Institutional Macro Regime Engine** explicitly shifts capital to defensive assets or risk-seeking assets depending on a 20-point composite score built from 13 fundamental tracking datasets.
+            
+            Based on the trailing sum of fundamental momentum across 4 pillars (Economic Growth, Credit Spreads, Market Liquidity, and Market Trends), the model assigns one of 5 distinct Regimes:
+            - **STRONG BULL (>8)**: 45% NTSX, 40% QQQ, 10% DBMF, 5% GLD
+            - **BULL (>3)**: 40% NTSX, 35% QQQ, 15% DBMF, 5% GLD, 5% CASH
+            - **NEUTRAL (>-3)**: 30% NTSX, 20% DBMF, 20% GLD, 30% CASH
+            - **RISK OFF (>-8)**: 40% DBMF, 30% GLD, 30% CASH
+            - **CRISIS (<-8)**: 50% DBMF, 30% GLD, 20% CASH
+            
+            *(Note: SGOV/SHV proxies Cash/Short-duration Treasuries. NTSX provides 90/60 levered SPY/TLT foundational exposure).*
+            """)
+            
+        st.subheader("📜 Recent Transaction Ledger & Performance")
+        
+        # Build the historical dataframe showing weights based on the Regime
+        weight_map = {
+            "STRONG BULL": {"NTSX": "45%", "QQQ": "40%", "DBMF": "10%", "GLD": "5%", "CASH": "0%"},
+            "BULL": {"NTSX": "40%", "QQQ": "35%", "DBMF": "15%", "GLD": "5%", "CASH": "5%"},
+            "NEUTRAL": {"NTSX": "30%", "QQQ": "0%", "DBMF": "20%", "GLD": "20%", "CASH": "30%"},
+            "RISK OFF": {"NTSX": "0%", "QQQ": "0%", "DBMF": "40%", "GLD": "30%", "CASH": "30%"},
+            "CRISIS": {"NTSX": "0%", "QQQ": "0%", "DBMF": "50%", "GLD": "30%", "CASH": "20%"}
+        }
+        
+        recent_log = backtest_df.tail(10).copy()
+        recent_log['Total Score'] = scores_df['total_score'].loc[recent_log.index].map("{:.1f}".format)
+        recent_log['NTSX'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("NTSX", "0%"))
+        recent_log['QQQ'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("QQQ", "0%"))
+        recent_log['DBMF'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("DBMF", "0%"))
+        recent_log['GLD'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("GLD", "0%"))
+        recent_log['CASH'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("CASH", "0%"))
+        recent_log['Daily Return'] = (recent_log['Daily_Return'] * 100).map("{:.2f}%".format)
+        
+        st.dataframe(recent_log[['Regime', 'Total Score', 'NTSX', 'QQQ', 'DBMF', 'GLD', 'CASH', 'Daily Return']], use_container_width=True)
+        
+        with st.expander("🔬 Raw Indicator Signals (Last 5 Days)"):
+            st.dataframe(scores_df.tail(5))
         
         st.markdown("*Note: Uses FRED datasets (M2, LEI, Spreads) and YFinance price action proxies to ensure zero look-ahead bias spanning two decades.*")
 
