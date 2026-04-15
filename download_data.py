@@ -12,7 +12,7 @@ def download_and_save():
     print("Downloading Market Data...")
     tickers = ['^GSPC', '^VIX', 'QQQ', 'GLD', 'SPY', 'TLT', 'DBMF', 'CSHI', 'SHV']
     market_df = yf.download(tickers, start=start_date, end=end_date.strftime("%Y-%m-%d"))['Close']
-    market_df = market_df.fillna(method='ffill')
+    market_df = market_df.ffill()
     market_df.to_csv('data/historical_market.csv')
     print("Market Data Saved.")
 
@@ -38,7 +38,7 @@ def download_and_save():
     try:
         macro_df = web.DataReader(list(fred_series.values()), 'fred', start_date, end_date.strftime("%Y-%m-%d"))
         macro_df.columns = list(fred_series.keys())
-        macro_df = macro_df.fillna(method='ffill')
+        macro_df = macro_df.ffill()
         macro_df.to_csv('data/historical_macro.csv')
         print("Macro Data Saved.")
     except Exception as e:

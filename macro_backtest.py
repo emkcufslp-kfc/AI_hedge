@@ -31,7 +31,7 @@ def compute_regime_score(macro_df, market_df):
     """
     # Merge on date
     df = pd.merge(market_df, macro_df, left_index=True, right_index=True, how='left')
-    df = df.fillna(method='ffill').dropna()
+    df = df.ffill().dropna()
     
     scores = pd.DataFrame(index=df.index)
     score_cols = []
