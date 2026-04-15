@@ -66,7 +66,7 @@ st.markdown("""
 
 # --- Sidebar Navigation ---
 st.sidebar.title("🏦 Institutional Dashboard")
-page = st.sidebar.radio("Navigation", ["Agent Consensus", "Macro Regime Model"])
+page = st.sidebar.radio("Navigation", ["Agent Consensus", "Macro Regime Model", "Final RWRA Engine"])
 
 if page == "Agent Consensus":
     st.title("🏦 Institutional AI Hedge Fund - CIO Terminal")
@@ -164,3 +164,55 @@ elif page == "Macro Regime Model":
         
         st.markdown("*Note: Uses FRED datasets (M2, LEI, Spreads) and YFinance price action proxies to ensure zero look-ahead bias spanning two decades.*")
 
+elif page == "Final RWRA Engine":
+    st.title("⚖️ Regime-Weighted Risk Allocation (RWRA)")
+    st.markdown("Dynamic Probabilistic Allocation Engine (vFinal)")
+    
+    try:
+        from rwra_backtest import run_rwra_backtest
+    except Exception as e:
+        st.error(f"Failed to import RWRA engine. Root cause: {str(e)}")
+        st.stop()
+        
+    @st.cache_data(ttl=86400)
+    def fetch_rwra():
+        return run_rwra_backtest()
+        
+    with st.spinner("Downloading and processing real historical datasets..."):
+        backtest_df, probs, latest_weights = fetch_rwra()
+        
+    if backtest_df is None or backtest_df.empty:
+        st.error("Failed to fetch historical actual data for RWRA.")
+    else:
+        # Display Probabilities
+        st.subheader("🎲 Live Regime Probabilities")
+        curr_probs = probs.iloc[-1]
+        
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.markdown(f'<div class="metric-card"><div class="metric-title">Bull</div><div class="metric-value" style="color:#3fb950;">{curr_probs["Bull"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+        with c2:
+            st.markdown(f'<div class="metric-card"><div class="metric-title">Neutral</div><div class="metric-value" style="color:#f0f6fc;">{curr_probs["Neutral"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+        with c3:
+            st.markdown(f'<div class="metric-card"><div class="metric-title">Bear</div><div class="metric-value" style="color:#d2a8ff;">{curr_probs["Bear"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+        with c4:
+            st.markdown(f'<div class="metric-card"><div class="metric-title">Crisis</div><div class="metric-value" style="color:#f85149;">{curr_probs["Crisis"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+            
+        st.markdown("---")
+        
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.subheader("⚖️ Target Weights")
+            for asset, weight in latest_weights.items():
+                st.markdown(f"**{asset}**: {weight*100:.1f}%")
+                st.progress(weight)
+                
+        with col2:
+            st.subheader("📈 RWRA 20-Year Equity Curve")
+            plot_df = pd.DataFrame({
+                'RWRA Strategy (12.4% Target)': backtest_df['Cumulative_Return'],
+                '60/40 Benchmark': backtest_df['60_40_CumRev']
+            })
+            st.line_chart(plot_df)
+            
+        st.markdown("*Emergency Protocol Note: If VIX > 35, probabilities mathematically lock to 100% Crisis.*")

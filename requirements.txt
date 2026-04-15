@@ -5,3 +5,4 @@ SQLAlchemy
 celery
 yfinance
 pandas-datareader
+setuptools
