@@ -120,8 +120,8 @@ elif page == "Macro Regime Model":
     # We dynamically load macro_backtest
     try:
         from macro_backtest import run_backtest
-    except ImportError:
-        st.error("Error loading backtest engine. Ensure macro_backtest.py is present.")
+    except Exception as e:
+        st.error(f"Failed to import macro engine. Root cause: {str(e)}")
         st.stop()
         
     @st.cache_data(ttl=86400) # Cache for 24 hours so it only runs once per day on Streamlit Cloud
