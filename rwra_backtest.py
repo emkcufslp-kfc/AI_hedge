@@ -95,30 +95,54 @@ def run_rwra_backtest():
     
     portfolio_returns = []
     daily_blended_weights = []
+    action_triggered = []
     
-    prev_weights = np.zeros(6)
+    current_portfolio = np.zeros(6)
+    
     for i in range(1, len(probs)):
         prob_dist = probs.iloc[i-1] 
         
-        blended_weights = (
+        target_weights = (
             prob_dist['Bull'] * weights_bull +
             prob_dist['Neutral'] * weights_neutral +
             prob_dist['Bear'] * weights_bear +
             prob_dist['Crisis'] * weights_crisis
         )
         
-        # Transaction Cost (10 bps per dollar turned over)
-        turnover = np.sum(np.abs(blended_weights - prev_weights)) if i > 1 else 0
-        t_cost = turnover * 0.0010
+        day_rets = asset_rets.iloc[i].values
         
-        daily_blended_weights.append(blended_weights)
-        day_ret = np.dot(blended_weights, asset_rets.iloc[i].values) - t_cost
-        
+        if i == 1:
+            current_portfolio = target_weights
+            action_triggered.append(True)
+            day_ret = np.dot(current_portfolio, day_rets)
+            
+            # Market drift
+            current_portfolio = current_portfolio * (1 + day_rets)
+            if np.sum(current_portfolio) > 0:
+                current_portfolio = current_portfolio / np.sum(current_portfolio)
+        else:
+            turnover_delta = np.sum(np.abs(target_weights - current_portfolio))
+            
+            if turnover_delta > 0.05: # Strict 5% Turnover Threshold
+                action_triggered.append(True)
+                t_cost = turnover_delta * 0.0010
+                current_portfolio = target_weights
+            else:
+                action_triggered.append(False)
+                t_cost = 0 
+                
+            day_ret = np.dot(current_portfolio, day_rets) - t_cost
+            
+            current_portfolio = current_portfolio * (1 + day_rets)
+            if np.sum(current_portfolio) > 0:
+                current_portfolio = current_portfolio / np.sum(current_portfolio)
+                
+        daily_blended_weights.append(current_portfolio)
         portfolio_returns.append(day_ret)
-        prev_weights = blended_weights
         
     backtest_df = pd.DataFrame(index=probs.index[1:])
     backtest_df['RWRA_Return'] = portfolio_returns
+    backtest_df['Action_Triggered'] = action_triggered
     backtest_df['Cumulative_Return'] = (1 + backtest_df['RWRA_Return']).cumprod()
     
     # Attach the weights matrix to backtest_df for transaction logging
@@ -129,11 +153,13 @@ def run_rwra_backtest():
     backtest_df['60_40_Ret'] = asset_rets['SPY'].iloc[1:] * 0.6 + asset_rets['TLT'].iloc[1:] * 0.4
     backtest_df['60_40_CumRev'] = (1 + backtest_df['60_40_Ret']).cumprod()
     
-    latest_weights = dict(zip(['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI'], daily_blended_weights[-1]))
+    latest_weights = dict(zip(['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI'], current_portfolio))
     
     metrics = {
         'Strategy': compute_metrics(backtest_df['RWRA_Return']),
         'Benchmark': compute_metrics(backtest_df['60_40_Ret'])
     }
     
-    return backtest_df, probs, latest_weights, metrics
+    latest_prices = df[['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']].iloc[-1].to_dict()
+    
+    return backtest_df, probs, latest_weights, metrics, latest_prices

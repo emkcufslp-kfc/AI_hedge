@@ -125,11 +125,11 @@ elif page == "Macro Regime Model":
         st.stop()
         
     @st.cache_data(ttl=86400) # Cache for 24 hours
-    def fetch_and_run_backtest_v3():
+    def fetch_and_run_backtest_v4():
         return run_backtest()
         
     with st.spinner("Fetching decades of historic fundamental and market data from FRED & Yahoo Finance..."):
-        backtest_df, scores_df, metrics_dict = fetch_and_run_backtest_v3()
+        backtest_df, scores_df, metrics_dict, latest_prices = fetch_and_run_backtest_v4()
         
     if backtest_df is None or backtest_df.empty:
         st.error("Failed to fetch historical actual data. The APIs might be rate limited locally.")
@@ -151,8 +151,24 @@ elif page == "Macro Regime Model":
             st.markdown(f'<div class="metric-card"><div class="metric-title">Systematic Crash Risk</div><div class="metric-value">{risk_pct:.1f}%</div></div>', unsafe_allow_html=True)
             
         st.markdown("---")
+        st.subheader("⚡ Live Action Required Console")
+        action_triggered_today = backtest_df['Action_Triggered'].iloc[-1]
+        
+        if action_triggered_today:
+            st.error("🚨 **REBALANCE TRIGGERED TODAY!** The portfolio weights mathematically breached the >5% physical drift tolerance boundary. Execute new allocations.", icon="🚨")
+        else:
+            st.success("✅ **HOLD STATUS (NO ACTION REQUIRED).** The physical portfolio remains within the 5% tolerance drift band of the previously executed target.", icon="✅")
+            
+        with st.expander("💳 Current Target Ticket Execution Pricing", expanded=False):
+            t1, t2, t3, t4 = st.columns(4)
+            t1.metric("QQQ (Nasdaq 100)", f"${latest_prices['QQQ']:.2f}")
+            t2.metric("TLT (20Y+ Treasury via NTSX)", f"${latest_prices['TLT']:.2f}") # TLT proxy for NTSX component
+            t3.metric("GLD (Gold)", f"${latest_prices['GLD']:.2f}")
+            t4.metric("DBMF (Managed Futures)", f"${latest_prices['DBMF']:.2f}")
+            
+        st.markdown("---")
         st.subheader("🏆 Strategy Performance Metrics (vs 60/40)")
-        st.markdown("*Metrics include **10 basis points** deduction for slippage and transaction friction applied identically per turnover round-trip.*")
+        st.markdown("*Metrics explicitly include **10 basis points** physical transaction friction extracted per threshold rebalance round-trip.*")
         
         mc1, mc2, mc3, mc4 = st.columns(4)
         strat_mets = metrics_dict['Strategy']
@@ -192,7 +208,7 @@ elif page == "Macro Regime Model":
             *(Note: SGOV/SHV proxies Cash/Short-duration Treasuries. NTSX provides 90/60 levered SPY/TLT foundational exposure).*
             """)
             
-        st.subheader("📜 Recent Transaction Ledger & Performance")
+        st.subheader("📜 Historical Execution Ledger (Last 10 Physical Trades)")
         
         # Build the historical dataframe showing weights based on the Regime
         weight_map = {
@@ -203,7 +219,10 @@ elif page == "Macro Regime Model":
             "CRISIS": {"NTSX": "0%", "QQQ": "0%", "DBMF": "50%", "GLD": "30%", "CASH": "20%"}
         }
         
-        recent_log = backtest_df.tail(10).copy()
+        # ACTUALLY filter the dataframe purely to periods where a >5% Rebalance effectively executed
+        action_log = backtest_df[backtest_df['Action_Triggered'] == True].copy()
+        recent_log = action_log.tail(10)
+        
         recent_log['Total Score'] = scores_df['total_score'].loc[recent_log.index].map("{:.1f}".format)
         recent_log['NTSX (90/60 SPY/TLT)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("NTSX", "0%"))
         recent_log['QQQ (Nasdaq 100)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("QQQ", "0%"))
@@ -230,11 +249,11 @@ elif page == "Final RWRA Engine":
         st.stop()
         
     @st.cache_data(ttl=86400)
-    def fetch_rwra_v3():
+    def fetch_rwra_v4():
         return run_rwra_backtest()
         
     with st.spinner("Downloading and processing real historical datasets..."):
-        backtest_df, probs, latest_weights, metrics_dict = fetch_rwra_v3()
+        backtest_df, probs, latest_weights, metrics_dict, latest_prices = fetch_rwra_v4()
         
     if backtest_df is None or backtest_df.empty:
         st.error("Failed to fetch historical actual data for RWRA.")
@@ -254,8 +273,26 @@ elif page == "Final RWRA Engine":
             st.markdown(f'<div class="metric-card"><div class="metric-title">Crisis</div><div class="metric-value" style="color:#f85149;">{curr_probs["Crisis"]*100:.1f}%</div></div>', unsafe_allow_html=True)
             
         st.markdown("---")
+        st.subheader("⚡ Live Action Required Console")
+        action_triggered_today = backtest_df['Action_Triggered'].iloc[-1]
+        
+        if action_triggered_today:
+            st.error("🚨 **REBALANCE TRIGGERED TODAY!** The portfolio mathematically breached the >5% physical drift tolerance boundary. Execute the new weights below.", icon="🚨")
+        else:
+            st.success("✅ **HOLD STATUS (NO ACTION REQUIRED).** The physical portfolio remains within the 5% tolerance drift band of the previously executed target.", icon="✅")
+            
+        with st.expander("💳 Current Target Ticket Execution Pricing", expanded=False):
+            t1, t2, t3, t4, t5, t6 = st.columns(6)
+            t1.metric("SPY", f"${latest_prices['SPY']:.2f}")
+            t2.metric("QQQ", f"${latest_prices['QQQ']:.2f}")
+            t3.metric("TLT", f"${latest_prices['TLT']:.2f}")
+            t4.metric("GLD", f"${latest_prices['GLD']:.2f}")
+            t5.metric("DBMF", f"${latest_prices['DBMF']:.2f}")
+            t6.metric("CSHI", f"${latest_prices['CSHI']:.2f}")
+            
+        st.markdown("---")
         st.subheader("🏆 Strategy Performance Metrics (vs 60/40)")
-        st.markdown("*Metrics include **10 basis points** deduction for slippage and transaction friction applied identically per turnover round-trip.*")
+        st.markdown("*Metrics explicitly include **10 basis points** physical transaction friction extracted per threshold rebalance round-trip.*")
         
         mc1, mc2, mc3, mc4 = st.columns(4)
         strat_mets = metrics_dict['Strategy']
@@ -315,11 +352,13 @@ elif page == "Final RWRA Engine":
             *Emergency Protocol:* If the **VIX crosses 35**, all calculations are aborted and the regime strictly locks to 100% Crisis.
             """)
             
-        # 2. Transaction Log (Last 10 Days)
-        st.subheader("📜 Recent Transaction Ledger & Performance")
+        st.subheader("📜 Historical Execution Ledger (Last 10 Physical Trades)")
         
-        # We merge backtest weights, probs and returns for the last 10 days
-        log_df = pd.merge(probs, backtest_df[['RWRA_Return', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']], left_index=True, right_index=True)
+        # Filter purely for Action Trade dates!
+        action_log = backtest_df[backtest_df['Action_Triggered'] == True].copy()
+        
+        # We merge backtest weights, probs and returns for the last 10 execution days
+        log_df = pd.merge(probs, action_log[['RWRA_Return', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']], left_index=True, right_index=True)
         log_df = log_df.tail(10)
         
         log_df = log_df.rename(columns={

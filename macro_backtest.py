@@ -111,6 +111,7 @@ def run_backtest():
     
     portfolio_returns = []
     regimes_used = []
+    action_triggered = []
     
     weight_map = {
         "STRONG BULL": np.array([0.45, 0.40, 0.10, 0.05, 0.00]),
@@ -119,28 +120,51 @@ def run_backtest():
         "RISK OFF":    np.array([0.00, 0.00, 0.40, 0.30, 0.30]),
         "CRISIS":      np.array([0.00, 0.00, 0.50, 0.30, 0.20])
     }
-    prev_weights = np.zeros(5)
+    
+    current_portfolio = np.zeros(5)
     
     for i in range(1, len(scores)):
-        regime = scores['Regime'].iloc[i-1] # Use previous day regime to trade today
+        regime = scores['Regime'].iloc[i-1] 
         day_rets = merged_df.iloc[i]
         
-        curr_weights = weight_map.get(regime, np.zeros(5))
-        turnover = np.sum(np.abs(curr_weights - prev_weights)) if i > 1 else 0
-        t_cost = turnover * 0.0010
-        
+        target_weights = weight_map.get(regime, np.zeros(5))
         asset_vector = np.array([day_rets['NTSX_Proxy'], day_rets['Ret_QQQ'], day_rets['DBMF_Proxy'], day_rets['Ret_GLD'], day_rets['Ret_SGOV']])
         
-        ret = np.dot(curr_weights, asset_vector)
-        if not np.isnan(t_cost):
-            ret -= t_cost
+        if i == 1:
+            current_portfolio = target_weights
+            action_triggered.append(True)
+            ret = np.dot(current_portfolio, asset_vector)
+            
+            # Market drift
+            current_portfolio = current_portfolio * (1 + asset_vector)
+            if np.sum(current_portfolio) > 0:
+                current_portfolio = current_portfolio / np.sum(current_portfolio)
+        else:
+            turnover = np.sum(np.abs(target_weights - current_portfolio))
+            
+            if turnover > 0.05: # Strict 5% Turnover Threshold
+                action_triggered.append(True)
+                t_cost = turnover * 0.0010
+                current_portfolio = target_weights
+            else:
+                action_triggered.append(False)
+                t_cost = 0 
+                
+            ret = np.dot(current_portfolio, asset_vector)
+            if not np.isnan(t_cost):
+                ret -= t_cost
+                
+            # Post trade market drift
+            current_portfolio = current_portfolio * (1 + asset_vector)
+            if np.sum(current_portfolio) > 0:
+                current_portfolio = current_portfolio / np.sum(current_portfolio)
             
         portfolio_returns.append(ret)
         regimes_used.append(regime)
-        prev_weights = curr_weights
         
     backtest_df = pd.DataFrame(index=scores.index[1:])
     backtest_df['Daily_Return'] = portfolio_returns
+    backtest_df['Action_Triggered'] = action_triggered
     backtest_df['Regime'] = regimes_used
     backtest_df['Cumulative_Return'] = (1 + backtest_df['Daily_Return']).cumprod()
     
@@ -153,4 +177,6 @@ def run_backtest():
         'Benchmark': compute_metrics(backtest_df['60_40_Ret'])
     }
     
-    return backtest_df, scores, metrics
+    latest_prices = merged_df[['QQQ', 'DBMF', 'GLD', 'SHV', 'SPY', 'TLT']].iloc[-1].to_dict()
+    
+    return backtest_df, scores, metrics, latest_prices
