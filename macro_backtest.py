@@ -9,7 +9,7 @@ warnings.filterwarnings("ignore")
 def fetch_macro_data(start_date, end_date):
     """Fetches macro indicators from local FRED cache."""
     try:
-        df = pd.read_csv('data/historical_macro.csv', index_col='Date', parse_dates=True)
+        df = pd.read_csv('data/historical_macro.csv', index_col=0, parse_dates=True)
         return df.loc[start_date:end_date]
     except Exception as e:
         print(f"Error loading local FRED cache: {e}")
@@ -18,7 +18,7 @@ def fetch_macro_data(start_date, end_date):
 def fetch_market_data(start_date, end_date):
     """Fetches asset data from local Yahoo Finance cache."""
     try:
-        df = pd.read_csv('data/historical_market.csv', index_col='Date', parse_dates=True)
+        df = pd.read_csv('data/historical_market.csv', index_col=0, parse_dates=True)
         return df.loc[start_date:end_date]
     except Exception as e:
         print(f"Error loading local YF cache: {e}")

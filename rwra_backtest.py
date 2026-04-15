@@ -1,11 +1,56 @@
 import pandas as pd
 import numpy as np
-import datetime
+
+def compute_rwra_probabilities(df):
+    """
+    Computes daily probabilities for Bull, Neutral, Bear, Crisis 
+    based on the 5 Core Indicators and the VIX > 35 override.
+    """
+    probs = pd.DataFrame(index=df.index, columns=['Bull', 'Neutral', 'Bear', 'Crisis'])
+    
+    # Pre-calculate 5 indicators
+    yield_curve_inverted = df['T10Y2Y'] < 0
+    credit_spread_rising = df['HY_Spread'] > df['HY_Spread'].rolling(252).mean()
+    liquidity_tight = df['Financial_Condition'] > 0
+    volatility_high = df['^VIX'] > 20
+    trend_bearish = df['^GSPC'] < df['^GSPC'].rolling(200).mean()
+    
+    for i in range(len(df)):
+        vix_val = df['^VIX'].iloc[i]
+        
+        # Emergency Override
+        if vix_val > 35:
+            probs.iloc[i] = {'Bull': 0.0, 'Neutral': 0.0, 'Bear': 0.0, 'Crisis': 1.0}
+            continue
+            
+        # Count bearish signals (0 to 5)
+        bear_score = 0
+        if yield_curve_inverted.iloc[i]: bear_score += 1
+        if credit_spread_rising.iloc[i]: bear_score += 1
+        if liquidity_tight.iloc[i]: bear_score += 1
+        if volatility_high.iloc[i]: bear_score += 1
+        if trend_bearish.iloc[i]: bear_score += 1
+        
+        # Simple probabilistic mapping based on bear signals
+        if bear_score == 0:
+            probs.iloc[i] = {'Bull': 0.70, 'Neutral': 0.20, 'Bear': 0.08, 'Crisis': 0.02}
+        elif bear_score == 1:
+            probs.iloc[i] = {'Bull': 0.50, 'Neutral': 0.30, 'Bear': 0.15, 'Crisis': 0.05}
+        elif bear_score == 2:
+            probs.iloc[i] = {'Bull': 0.30, 'Neutral': 0.40, 'Bear': 0.20, 'Crisis': 0.10}
+        elif bear_score == 3:
+            probs.iloc[i] = {'Bull': 0.10, 'Neutral': 0.35, 'Bear': 0.40, 'Crisis': 0.15}
+        elif bear_score == 4:
+            probs.iloc[i] = {'Bull': 0.05, 'Neutral': 0.15, 'Bear': 0.50, 'Crisis': 0.30}
+        else: # bear_score == 5
+            probs.iloc[i] = {'Bull': 0.00, 'Neutral': 0.05, 'Bear': 0.35, 'Crisis': 0.60}
+            
+    return probs.astype(float)
 
 def run_rwra_backtest():
     try:
-        macro_df = pd.read_csv('data/historical_macro.csv', index_col='Date', parse_dates=True)
-        market_df = pd.read_csv('data/historical_market.csv', index_col='Date', parse_dates=True)
+        macro_df = pd.read_csv('data/historical_macro.csv', index_col=0, parse_dates=True)
+        market_df = pd.read_csv('data/historical_market.csv', index_col=0, parse_dates=True)
         
         df = pd.merge(market_df, macro_df, left_index=True, right_index=True, how='left')
         df = df.dropna()

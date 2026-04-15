@@ -10,7 +10,7 @@ def download_and_save():
 
     # Download Market Data (yfinance)
     print("Downloading Market Data...")
-    tickers = ['^GSPC', '^VIX', 'QQQ', 'GLD', 'SPY', 'TLT', 'DBMF', 'CSHI']
+    tickers = ['^GSPC', '^VIX', 'QQQ', 'GLD', 'SPY', 'TLT', 'DBMF', 'CSHI', 'SHV']
     market_df = yf.download(tickers, start=start_date, end=end_date.strftime("%Y-%m-%d"))['Close']
     market_df = market_df.fillna(method='ffill')
     market_df.to_csv('data/historical_market.csv')
