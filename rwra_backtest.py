@@ -1,26 +1,12 @@
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import pandas_datareader.data as web
 import datetime
 from dateutil.relativedelta import relativedelta
 
 def fetch_rwra_data(start_date, end_date):
-    """Fetches macro indicators and market data specifically for the RWRA framework."""
-    fred_series = {
-        'T10Y2Y': 'T10Y2Y',                # Yield Curve
-        'HY_Spread': 'BAMLH0A0HYM2',       # Credit Spread
-        'Financial_Condition': 'NFCI'      # Financial Conditions / Liquidity (Tight/Loose)
-    }
-    
-    tickers = ['^GSPC', '^VIX', 'QQQ', 'GLD', 'SPY', 'TLT', 'SHV']
-    
-    try:
-        # Fetch FRED
-        macro_df = web.DataReader(list(fred_series.values()), 'fred', start_date, end_date)
-        macro_df.columns = list(fred_series.keys())
-        macro_df = macro_df.fillna(method='ffill')
-        
+    pass # we handle this inside run_rwra_backtest now
+
 def run_rwra_backtest():
     end_date = datetime.date.today()
     # We attempt to pull from 2004, but pd.dropna() will enforce true inception dates (e.g. 2022 for CSHI).
@@ -31,9 +17,20 @@ def run_rwra_backtest():
     tickers = ['^GSPC', '^VIX', 'QQQ', 'GLD', 'SPY', 'TLT', 'DBMF', 'CSHI']
     
     try:
-        macro_df = web.DataReader(list(fred_series.values()), 'fred', start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-        macro_df.columns = list(fred_series.keys())
-        macro_df = macro_df.fillna(method='ffill')
+        # Native FRED fetching without pandas-datareader
+        macro_dfs = []
+        for key, series_id in fred_series.items():
+            url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
+            temp_df = pd.read_csv(url, na_values='.')
+            temp_df = temp_df.rename(columns={'DATE': 'Date', series_id: key})
+            temp_df['Date'] = pd.to_datetime(temp_df['Date'])
+            temp_df.set_index('Date', inplace=True)
+            macro_dfs.append(temp_df)
+        
+        macro_df = pd.concat(macro_dfs, axis=1)
+        macro_df = macro_df.loc[start_date.strftime("%Y-%m-%d"):end_date.strftime("%Y-%m-%d")]
+        macro_df = macro_df.ffill()
+
         
         market_df = yf.download(tickers, start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"))['Adj Close']
         # Forward fill over market holidays, but do not backfill before inception

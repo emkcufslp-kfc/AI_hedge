@@ -1,14 +1,13 @@
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import pandas_datareader.data as web
 import datetime
 from dateutil.relativedelta import relativedelta
 import warnings
 warnings.filterwarnings("ignore")
 
 def fetch_macro_data(start_date, end_date):
-    """Fetches macro indicators from FRED."""
+    """Fetches macro indicators from FRED natively."""
     fred_series = {
         'UNRATE': 'UNRATE',                # Unemployment
         'INDPRO': 'INDPRO',                # Ind Production
@@ -23,11 +22,21 @@ def fetch_macro_data(start_date, end_date):
     }
     
     try:
-        # Fetch from FRED
-        df = web.DataReader(list(fred_series.values()), 'fred', start_date, end_date)
-        df.columns = list(fred_series.keys())
-        df = df.fillna(method='ffill') # Forward fill monthly/weekly data to daily
+        # Native FRED fetching without pandas-datareader
+        macro_dfs = []
+        for key, series_id in fred_series.items():
+            url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
+            temp_df = pd.read_csv(url, na_values='.')
+            temp_df = temp_df.rename(columns={'DATE': 'Date', series_id: key})
+            temp_df['Date'] = pd.to_datetime(temp_df['Date'])
+            temp_df.set_index('Date', inplace=True)
+            macro_dfs.append(temp_df)
+            
+        df = pd.concat(macro_dfs, axis=1)
+        df = df.loc[start_date:end_date]
+        df = df.ffill()
         return df
+
     except Exception as e:
         print(f"Error fetching FRED data: {e}")
         # Fallback empty dataframe if API fails

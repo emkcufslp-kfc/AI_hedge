@@ -1,8 +1,6 @@
 streamlit
-pandas<2.2.0
+pandas
 numpy
+yfinance
 SQLAlchemy
 celery
-yfinance
-pandas-datareader
-setuptools
