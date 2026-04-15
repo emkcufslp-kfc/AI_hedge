@@ -70,6 +70,21 @@ def assign_regime(score):
     elif score > -8: return "RISK OFF"
     else: return "CRISIS"
 
+def compute_metrics(series):
+    days = len(series)
+    years = days / 252
+    cum_ret = (1 + series).prod()
+    cagr = (cum_ret ** (1 / years)) - 1 if years > 0 else 0
+    vol = series.std() * np.sqrt(252)
+    sharpe = cagr / vol if vol > 0 else 0
+    
+    cumprod_series = (1 + series).cumprod()
+    rolling_max = cumprod_series.cummax()
+    drawdowns = cumprod_series / rolling_max - 1
+    max_dd = drawdowns.min()
+    
+    return {'CAGR': cagr, 'Vol': vol, 'Sharpe': sharpe, 'Max_DD': max_dd}
+
 def run_backtest():
     """Main execution entrypoint to run actual historical backtest."""
     end_date = datetime.date.today()
@@ -79,7 +94,7 @@ def run_backtest():
     market_data = fetch_market_data(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
     
     if macro_data.empty or market_data.empty:
-        return None, None
+        return None, None, None
         
     scores, merged_df = compute_regime_score(macro_data, market_data)
     
@@ -97,23 +112,32 @@ def run_backtest():
     portfolio_returns = []
     regimes_used = []
     
+    weight_map = {
+        "STRONG BULL": np.array([0.45, 0.40, 0.10, 0.05, 0.00]),
+        "BULL":        np.array([0.40, 0.35, 0.15, 0.05, 0.05]),
+        "NEUTRAL":     np.array([0.30, 0.00, 0.20, 0.20, 0.30]),
+        "RISK OFF":    np.array([0.00, 0.00, 0.40, 0.30, 0.30]),
+        "CRISIS":      np.array([0.00, 0.00, 0.50, 0.30, 0.20])
+    }
+    prev_weights = np.zeros(5)
+    
     for i in range(1, len(scores)):
         regime = scores['Regime'].iloc[i-1] # Use previous day regime to trade today
         day_rets = merged_df.iloc[i]
         
-        if regime == "STRONG BULL":
-            ret = (day_rets['NTSX_Proxy']*0.45 + day_rets['Ret_QQQ']*0.25 + day_rets['Ret_QQQ']*0.15 + day_rets['DBMF_Proxy']*0.10 + day_rets['Ret_GLD']*0.05)
-        elif regime == "BULL":
-            ret = (day_rets['NTSX_Proxy']*0.40 + day_rets['Ret_QQQ']*0.20 + day_rets['Ret_QQQ']*0.15 + day_rets['DBMF_Proxy']*0.15 + day_rets['Ret_GLD']*0.05 + day_rets['Ret_SGOV']*0.05)
-        elif regime == "NEUTRAL":
-            ret = (day_rets['NTSX_Proxy']*0.30 + day_rets['DBMF_Proxy']*0.20 + day_rets['Ret_GLD']*0.20 + day_rets['Ret_SGOV']*0.30)
-        elif regime == "RISK OFF":
-            ret = (day_rets['DBMF_Proxy']*0.40 + day_rets['Ret_GLD']*0.30 + day_rets['Ret_SGOV']*0.30)
-        else: # CRISIS
-            ret = (day_rets['DBMF_Proxy']*0.50 + day_rets['Ret_GLD']*0.30 + day_rets['Ret_SGOV']*0.20)
+        curr_weights = weight_map.get(regime, np.zeros(5))
+        turnover = np.sum(np.abs(curr_weights - prev_weights)) if i > 1 else 0
+        t_cost = turnover * 0.0010
+        
+        asset_vector = np.array([day_rets['NTSX_Proxy'], day_rets['Ret_QQQ'], day_rets['DBMF_Proxy'], day_rets['Ret_GLD'], day_rets['Ret_SGOV']])
+        
+        ret = np.dot(curr_weights, asset_vector)
+        if not np.isnan(t_cost):
+            ret -= t_cost
             
         portfolio_returns.append(ret)
         regimes_used.append(regime)
+        prev_weights = curr_weights
         
     backtest_df = pd.DataFrame(index=scores.index[1:])
     backtest_df['Daily_Return'] = portfolio_returns
@@ -124,4 +148,9 @@ def run_backtest():
     backtest_df['60_40_Ret'] = merged_df['SPY'].pct_change().iloc[1:] * 0.6 + merged_df['TLT'].pct_change().iloc[1:] * 0.4
     backtest_df['60_40_CumRev'] = (1 + backtest_df['60_40_Ret']).cumprod()
     
-    return backtest_df, scores
+    metrics = {
+        'Strategy': compute_metrics(backtest_df['Daily_Return']),
+        'Benchmark': compute_metrics(backtest_df['60_40_Ret'])
+    }
+    
+    return backtest_df, scores, metrics

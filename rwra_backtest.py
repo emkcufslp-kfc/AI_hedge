@@ -47,6 +47,21 @@ def compute_rwra_probabilities(df):
             
     return probs.astype(float)
 
+def compute_metrics(series):
+    days = len(series)
+    years = days / 252
+    cum_ret = (1 + series).prod()
+    cagr = (cum_ret ** (1 / years)) - 1 if years > 0 else 0
+    vol = series.std() * np.sqrt(252)
+    sharpe = cagr / vol if vol > 0 else 0
+    
+    cumprod_series = (1 + series).cumprod()
+    rolling_max = cumprod_series.cummax()
+    drawdowns = cumprod_series / rolling_max - 1
+    max_dd = drawdowns.min()
+    
+    return {'CAGR': cagr, 'Vol': vol, 'Sharpe': sharpe, 'Max_DD': max_dd}
+
 def run_rwra_backtest():
     try:
         macro_df = pd.read_csv('data/historical_macro.csv', index_col=0, parse_dates=True)
@@ -56,10 +71,10 @@ def run_rwra_backtest():
         df = df.dropna()
     except Exception as e:
         print(f"Error loading cached data: {e}")
-        return None, None, None
+        return None, None, None, None
 
     if df.empty:
-        return None, None, None
+        return None, None, None, None
         
     probs = compute_rwra_probabilities(df)
     
@@ -81,6 +96,7 @@ def run_rwra_backtest():
     portfolio_returns = []
     daily_blended_weights = []
     
+    prev_weights = np.zeros(6)
     for i in range(1, len(probs)):
         prob_dist = probs.iloc[i-1] 
         
@@ -91,9 +107,15 @@ def run_rwra_backtest():
             prob_dist['Crisis'] * weights_crisis
         )
         
+        # Transaction Cost (10 bps per dollar turned over)
+        turnover = np.sum(np.abs(blended_weights - prev_weights)) if i > 1 else 0
+        t_cost = turnover * 0.0010
+        
         daily_blended_weights.append(blended_weights)
-        day_ret = np.dot(blended_weights, asset_rets.iloc[i].values)
+        day_ret = np.dot(blended_weights, asset_rets.iloc[i].values) - t_cost
+        
         portfolio_returns.append(day_ret)
+        prev_weights = blended_weights
         
     backtest_df = pd.DataFrame(index=probs.index[1:])
     backtest_df['RWRA_Return'] = portfolio_returns
@@ -109,4 +131,9 @@ def run_rwra_backtest():
     
     latest_weights = dict(zip(['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI'], daily_blended_weights[-1]))
     
-    return backtest_df, probs, latest_weights
+    metrics = {
+        'Strategy': compute_metrics(backtest_df['RWRA_Return']),
+        'Benchmark': compute_metrics(backtest_df['60_40_Ret'])
+    }
+    
+    return backtest_df, probs, latest_weights, metrics

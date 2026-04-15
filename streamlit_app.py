@@ -124,12 +124,12 @@ elif page == "Macro Regime Model":
         st.error(f"Failed to import macro engine. Root cause: {str(e)}")
         st.stop()
         
-    @st.cache_data(ttl=86400) # Cache for 24 hours so it only runs once per day on Streamlit Cloud
-    def fetch_and_run_backtest_v2():
+    @st.cache_data(ttl=86400) # Cache for 24 hours
+    def fetch_and_run_backtest_v3():
         return run_backtest()
         
     with st.spinner("Fetching decades of historic fundamental and market data from FRED & Yahoo Finance..."):
-        backtest_df, scores_df = fetch_and_run_backtest_v2()
+        backtest_df, scores_df, metrics_dict = fetch_and_run_backtest_v3()
         
     if backtest_df is None or backtest_df.empty:
         st.error("Failed to fetch historical actual data. The APIs might be rate limited locally.")
@@ -149,6 +149,23 @@ elif page == "Macro Regime Model":
             # Crash risk proxy based on score
             risk_pct = max(0, min(100, (1 - (current_score + 20) / 40) * 100))
             st.markdown(f'<div class="metric-card"><div class="metric-title">Systematic Crash Risk</div><div class="metric-value">{risk_pct:.1f}%</div></div>', unsafe_allow_html=True)
+            
+        st.markdown("---")
+        st.subheader("🏆 Strategy Performance Metrics (vs 60/40)")
+        st.markdown("*Metrics include **10 basis points** deduction for slippage and transaction friction applied identically per turnover round-trip.*")
+        
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        strat_mets = metrics_dict['Strategy']
+        bench_mets = metrics_dict['Benchmark']
+        
+        with mc1:
+            st.metric("CAGR (Annualized)", f"{strat_mets['CAGR']*100:.1f}%", f"{(strat_mets['CAGR'] - bench_mets['CAGR'])*100:.1f}%")
+        with mc2:
+            st.metric("Max Drawdown", f"{strat_mets['Max_DD']*100:.1f}%", f"{(strat_mets['Max_DD'] - bench_mets['Max_DD'])*100:.1f}%", delta_color="inverse")
+        with mc3:
+            st.metric("Volatility", f"{strat_mets['Vol']*100:.1f}%", f"{(strat_mets['Vol'] - bench_mets['Vol'])*100:.1f}%", delta_color="inverse")
+        with mc4:
+            st.metric("Sharpe Ratio", f"{strat_mets['Sharpe']:.2f}", f"{strat_mets['Sharpe'] - bench_mets['Sharpe']:.2f}")
             
         st.markdown("---")
         st.subheader("📊 20-Year Historical Proof (Actual Data Proxy)")
@@ -213,11 +230,11 @@ elif page == "Final RWRA Engine":
         st.stop()
         
     @st.cache_data(ttl=86400)
-    def fetch_rwra_v2():
+    def fetch_rwra_v3():
         return run_rwra_backtest()
         
     with st.spinner("Downloading and processing real historical datasets..."):
-        backtest_df, probs, latest_weights = fetch_rwra_v2()
+        backtest_df, probs, latest_weights, metrics_dict = fetch_rwra_v3()
         
     if backtest_df is None or backtest_df.empty:
         st.error("Failed to fetch historical actual data for RWRA.")
@@ -235,6 +252,23 @@ elif page == "Final RWRA Engine":
             st.markdown(f'<div class="metric-card"><div class="metric-title">Bear</div><div class="metric-value" style="color:#d2a8ff;">{curr_probs["Bear"]*100:.1f}%</div></div>', unsafe_allow_html=True)
         with c4:
             st.markdown(f'<div class="metric-card"><div class="metric-title">Crisis</div><div class="metric-value" style="color:#f85149;">{curr_probs["Crisis"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+            
+        st.markdown("---")
+        st.subheader("🏆 Strategy Performance Metrics (vs 60/40)")
+        st.markdown("*Metrics include **10 basis points** deduction for slippage and transaction friction applied identically per turnover round-trip.*")
+        
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        strat_mets = metrics_dict['Strategy']
+        bench_mets = metrics_dict['Benchmark']
+        
+        with mc1:
+            st.metric("CAGR (Annualized)", f"{strat_mets['CAGR']*100:.1f}%", f"{(strat_mets['CAGR'] - bench_mets['CAGR'])*100:.1f}%")
+        with mc2:
+            st.metric("Max Drawdown", f"{strat_mets['Max_DD']*100:.1f}%", f"{(strat_mets['Max_DD'] - bench_mets['Max_DD'])*100:.1f}%", delta_color="inverse")
+        with mc3:
+            st.metric("Volatility", f"{strat_mets['Vol']*100:.1f}%", f"{(strat_mets['Vol'] - bench_mets['Vol'])*100:.1f}%", delta_color="inverse")
+        with mc4:
+            st.metric("Sharpe Ratio", f"{strat_mets['Sharpe']:.2f}", f"{strat_mets['Sharpe'] - bench_mets['Sharpe']:.2f}")
             
         st.markdown("---")
         
