@@ -334,6 +334,60 @@ elif page == "Final RWRA Engine":
             
         st.markdown("---")
         
+        st.subheader("🦅 Macro Regime Turning Points & Black Swan Ledger")
+        st.markdown("*Interactive Timeline mapping mathematical regime shifts against physical global macro shocks.*")
+        import altair as alt
+        try:
+            plot_probs = probs.copy()
+            plot_probs.index.name = 'Date'
+            plot_probs = plot_probs.reset_index()
+            
+            # Format explicitly for Altair layering
+            melted_probs = plot_probs.melt('Date', var_name='Regime', value_name='Probability')
+            
+            swan_events = {
+                "2008-09-15": "Lehman Brothers Collapse (GFC)",
+                "2011-08-05": "US Credit Downgrade",
+                "2015-08-24": "China Flash Crash",
+                "2018-02-05": "Volmageddon (VIX Spike)",
+                "2020-03-09": "COVID-19 Global Crash",
+                "2022-02-24": "Russia-Ukraine War",
+                "2023-03-10": "SVB Bank Collapse",
+                "2024-08-05": "Yen Carry Unwind"
+            }
+            swan_df = pd.DataFrame(list(swan_events.items()), columns=['Date', 'Event_Narrative'])
+            swan_df['Date'] = pd.to_datetime(swan_df['Date'])
+            
+            # 1. Base Layer Area Curve
+            area_chart = alt.Chart(melted_probs).mark_area(opacity=0.7).encode(
+                x=alt.X('Date:T', title='Lookback Timeline (20 Years)'),
+                y=alt.Y('Probability:Q', stack='normalize', title='Model Probability Allocation'),
+                color=alt.Color('Regime:N', scale=alt.Scale(domain=['Bull', 'Neutral', 'Bear', 'Crisis'], 
+                                                            range=['#3fb950', '#8b949e', '#d2a8ff', '#f85149'])),
+                tooltip=['Date:T', 'Regime:N', alt.Tooltip('Probability:Q', format='.1%')]
+            ).properties(height=400)
+            
+            # 2. Black Swan Intersection Lines
+            swan_rules = alt.Chart(swan_df).mark_rule(color='#ffcc00', strokeWidth=2, strokeDash=[4, 4]).encode(
+                x='Date:T',
+                tooltip=['Date:T', 'Event_Narrative:N']
+            )
+            
+            # 3. Text Overlay for visually flagging the events
+            swan_text = alt.Chart(swan_df).mark_text(
+                align='left', baseline='middle', dx=5, dy=-160, color='#ffcc00', fontSize=12, angle=270, fontWeight='bold'
+            ).encode(
+                x='Date:T',
+                text='Event_Narrative:N'
+            )
+            
+            final_chart = alt.layer(area_chart, swan_rules, swan_text).resolve_scale(y='shared')
+            st.altair_chart(final_chart, use_container_width=True)
+            
+        except Exception as e:
+            st.error(f"Failed to compile Altair rendering engine: {e}")
+            
+        st.markdown("---")
         # 1. Strategy Logic & How it works
         with st.expander("📚 How the RWRA Strategy Works", expanded=False):
             st.markdown("""
