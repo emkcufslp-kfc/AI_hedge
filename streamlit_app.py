@@ -215,4 +215,39 @@ elif page == "Final RWRA Engine":
             })
             st.line_chart(plot_df)
             
+        st.markdown("---")
+        
+        # 1. Strategy Logic & How it works
+        with st.expander("📚 How the RWRA Strategy Works", expanded=False):
+            st.markdown("""
+            **Regime-Weighted Risk Allocation (RWRA)** abandons traditional static portfolios (like 60/40) for a dynamic, mathematically pure engine that adjusts to macroeconomic reality every single day.
+            
+            **The Engine calculates a blend of 4 Regimes based on 5 Core Variables:**
+            1. **Yield Curve (`T10Y2Y`)**: An inverted yield curve indicates recession risk.
+            2. **Credit Spreads (`BAMLH0A0HYM2`)**: Rising corporate bond spreads indicate systemic stress.
+            3. **Liquidity (`NFCI`)**: Tightening financial conditions restrict economic growth.
+            4. **Volatility (`^VIX`)**: Market implied risk over 20 triggers bearish signals.
+            5. **Price Trend (`^GSPC`)**: S&P 500 trading below its 200-day moving average confirms a downtrend.
+            
+            Based on how many of these indicators signal danger, the engine assigns specific **Probabilities** to four regimes: *Bull, Neutral, Bear, and Crisis*. 
+            Asset weights are mathematically blended across these probabilities daily, removing human emotion.
+            
+            *Emergency Protocol:* If the **VIX crosses 35**, all calculations are aborted and the regime strictly locks to 100% Crisis.
+            """)
+            
+        # 2. Transaction Log (Last 10 Days)
+        st.subheader("📜 Recent Transaction Ledger & Performance")
+        
+        # We merge backtest weights, probs and returns for the last 10 days
+        log_df = pd.merge(probs, backtest_df[['RWRA_Return', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']], left_index=True, right_index=True)
+        log_df = log_df.tail(10)
+        
+        # Formatting for readability
+        for col in ['Bull', 'Neutral', 'Bear', 'Crisis', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']:
+            log_df[col] = (log_df[col] * 100).map("{:.1f}%".format)
+            
+        log_df['Daily Return'] = (log_df['RWRA_Return'] * 100).map("{:.2f}%".format)
+        
+        st.dataframe(log_df[['Bull', 'Neutral', 'Bear', 'Crisis', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI', 'Daily Return']], use_container_width=True)
+            
         st.markdown("*Emergency Protocol Note: If VIX > 35, probabilities mathematically lock to 100% Crisis.*")

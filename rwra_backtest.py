@@ -99,6 +99,10 @@ def run_rwra_backtest():
     backtest_df['RWRA_Return'] = portfolio_returns
     backtest_df['Cumulative_Return'] = (1 + backtest_df['RWRA_Return']).cumprod()
     
+    # Attach the weights matrix to backtest_df for transaction logging
+    weights_df = pd.DataFrame(daily_blended_weights, index=probs.index[1:], columns=['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI'])
+    backtest_df = pd.concat([backtest_df, weights_df], axis=1)
+    
     # 60/40 Benchmark based on real SPY/TLT
     backtest_df['60_40_Ret'] = asset_rets['SPY'].iloc[1:] * 0.6 + asset_rets['TLT'].iloc[1:] * 0.4
     backtest_df['60_40_CumRev'] = (1 + backtest_df['60_40_Ret']).cumprod()
