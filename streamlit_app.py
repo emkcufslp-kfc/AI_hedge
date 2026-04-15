@@ -125,11 +125,11 @@ elif page == "Macro Regime Model":
         st.stop()
         
     @st.cache_data(ttl=86400) # Cache for 24 hours so it only runs once per day on Streamlit Cloud
-    def fetch_and_run_backtest():
+    def fetch_and_run_backtest_v2():
         return run_backtest()
         
     with st.spinner("Fetching decades of historic fundamental and market data from FRED & Yahoo Finance..."):
-        backtest_df, scores_df = fetch_and_run_backtest()
+        backtest_df, scores_df = fetch_and_run_backtest_v2()
         
     if backtest_df is None or backtest_df.empty:
         st.error("Failed to fetch historical actual data. The APIs might be rate limited locally.")
@@ -188,14 +188,14 @@ elif page == "Macro Regime Model":
         
         recent_log = backtest_df.tail(10).copy()
         recent_log['Total Score'] = scores_df['total_score'].loc[recent_log.index].map("{:.1f}".format)
-        recent_log['NTSX'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("NTSX", "0%"))
-        recent_log['QQQ'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("QQQ", "0%"))
-        recent_log['DBMF'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("DBMF", "0%"))
-        recent_log['GLD'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("GLD", "0%"))
-        recent_log['CASH'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("CASH", "0%"))
+        recent_log['NTSX (90/60 SPY/TLT)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("NTSX", "0%"))
+        recent_log['QQQ (Nasdaq 100)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("QQQ", "0%"))
+        recent_log['DBMF (Managed Futures)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("DBMF", "0%"))
+        recent_log['GLD (Gold)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("GLD", "0%"))
+        recent_log['SHV (Short Treasury)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("CASH", "0%"))
         recent_log['Daily Return'] = (recent_log['Daily_Return'] * 100).map("{:.2f}%".format)
         
-        st.dataframe(recent_log[['Regime', 'Total Score', 'NTSX', 'QQQ', 'DBMF', 'GLD', 'CASH', 'Daily Return']], use_container_width=True)
+        st.dataframe(recent_log[['Regime', 'Total Score', 'NTSX (90/60 SPY/TLT)', 'QQQ (Nasdaq 100)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'SHV (Short Treasury)', 'Daily Return']], use_container_width=True)
         
         with st.expander("🔬 Raw Indicator Signals (Last 5 Days)"):
             st.dataframe(scores_df.tail(5))
@@ -213,11 +213,11 @@ elif page == "Final RWRA Engine":
         st.stop()
         
     @st.cache_data(ttl=86400)
-    def fetch_rwra():
+    def fetch_rwra_v2():
         return run_rwra_backtest()
         
     with st.spinner("Downloading and processing real historical datasets..."):
-        backtest_df, probs, latest_weights = fetch_rwra()
+        backtest_df, probs, latest_weights = fetch_rwra_v2()
         
     if backtest_df is None or backtest_df.empty:
         st.error("Failed to fetch historical actual data for RWRA.")
@@ -241,8 +241,16 @@ elif page == "Final RWRA Engine":
         col1, col2 = st.columns([1, 2])
         with col1:
             st.subheader("⚖️ Target Weights")
+            weight_names_map = {
+                'SPY': 'SPY (S&P 500)',
+                'QQQ': 'QQQ (Nasdaq 100)',
+                'TLT': 'TLT (20Y Treasury)',
+                'DBMF': 'DBMF (Managed Futures)',
+                'GLD': 'GLD (Gold)',
+                'CSHI': 'CSHI (High Yield Cash)'
+            }
             for asset, weight in latest_weights.items():
-                st.markdown(f"**{asset}**: {weight*100:.1f}%")
+                st.markdown(f"**{weight_names_map.get(asset, asset)}**: {weight*100:.1f}%")
                 st.progress(weight)
                 
         with col2:
@@ -280,12 +288,21 @@ elif page == "Final RWRA Engine":
         log_df = pd.merge(probs, backtest_df[['RWRA_Return', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']], left_index=True, right_index=True)
         log_df = log_df.tail(10)
         
+        log_df = log_df.rename(columns={
+            'SPY': 'SPY (S&P 500)',
+            'QQQ': 'QQQ (Nasdaq 100)',
+            'TLT': 'TLT (20Y Treasury)',
+            'DBMF': 'DBMF (Managed Futures)',
+            'GLD': 'GLD (Gold)',
+            'CSHI': 'CSHI (High Yield Cash)'
+        })
+        
         # Formatting for readability
-        for col in ['Bull', 'Neutral', 'Bear', 'Crisis', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']:
+        for col in ['Bull', 'Neutral', 'Bear', 'Crisis', 'SPY (S&P 500)', 'QQQ (Nasdaq 100)', 'TLT (20Y Treasury)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'CSHI (High Yield Cash)']:
             log_df[col] = (log_df[col] * 100).map("{:.1f}%".format)
             
         log_df['Daily Return'] = (log_df['RWRA_Return'] * 100).map("{:.2f}%".format)
         
-        st.dataframe(log_df[['Bull', 'Neutral', 'Bear', 'Crisis', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI', 'Daily Return']], use_container_width=True)
+        st.dataframe(log_df[['Bull', 'Neutral', 'Bear', 'Crisis', 'SPY (S&P 500)', 'QQQ (Nasdaq 100)', 'TLT (20Y Treasury)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'CSHI (High Yield Cash)', 'Daily Return']], use_container_width=True)
             
         st.markdown("*Emergency Protocol Note: If VIX > 35, probabilities mathematically lock to 100% Crisis.*")
