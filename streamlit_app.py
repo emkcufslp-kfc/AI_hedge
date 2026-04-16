@@ -237,7 +237,11 @@ elif page == "Macro Regime Model":
         recent_log['SHV (Short Treasury)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("CASH", "0%"))
         recent_log['Daily Return'] = (recent_log['Daily_Return'] * 100).map("{:.2f}%".format)
         
-        st.dataframe(recent_log[['Regime', 'Total Score', 'NTSX (90/60 SPY/TLT)', 'QQQ (Nasdaq 100)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'SHV (Short Treasury)', 'Daily Return']], use_container_width=True)
+        # Explicitly extract the index as a beautifully formatted Date column
+        recent_log = recent_log.reset_index().rename(columns={'index': 'Execution Date 📅'})
+        recent_log['Execution Date 📅'] = recent_log['Execution Date 📅'].dt.strftime('%b %d, %Y')
+        
+        st.dataframe(recent_log[['Execution Date 📅', 'Regime', 'Total Score', 'NTSX (90/60 SPY/TLT)', 'QQQ (Nasdaq 100)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'SHV (Short Treasury)', 'Daily Return']], use_container_width=True, hide_index=True)
         
         with st.expander("🔬 Raw Indicator Signals (Last 5 Days)"):
             st.dataframe(scores_df.tail(5))
@@ -456,6 +460,10 @@ elif page == "Final RWRA Engine":
             
         log_df['Daily Return'] = (log_df['RWRA_Return'] * 100).map("{:.2f}%".format)
         
-        st.dataframe(log_df[['Bull', 'Neutral', 'Bear', 'Crisis', 'SPY (S&P 500)', 'QQQ (Nasdaq 100)', 'TLT (20Y Treasury)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'CSHI (High Yield Cash)', 'Daily Return']], use_container_width=True)
+        # Explicitly extract the index as a beautifully formatted Date column
+        log_df = log_df.reset_index().rename(columns={'index': 'Execution Date 📅'})
+        log_df['Execution Date 📅'] = log_df['Execution Date 📅'].dt.strftime('%b %d, %Y')
+        
+        st.dataframe(log_df[['Execution Date 📅', 'Bull', 'Neutral', 'Bear', 'Crisis', 'SPY (S&P 500)', 'QQQ (Nasdaq 100)', 'TLT (20Y Treasury)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'CSHI (High Yield Cash)', 'Daily Return']], use_container_width=True, hide_index=True)
             
         st.markdown("*Emergency Protocol Note: If VIX > 35, probabilities mathematically lock to 100% Crisis.*")
