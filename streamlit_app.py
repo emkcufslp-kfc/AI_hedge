@@ -358,14 +358,14 @@ elif page == "Final RWRA Engine":
             swan_df = pd.DataFrame(list(swan_events.items()), columns=['Date', 'Event_Narrative'])
             swan_df['Date'] = pd.to_datetime(swan_df['Date'])
             
-            # 1. Base Layer Area Curve
+            # 1. Base Layer Area Curve (Now Fully Interactive)
             area_chart = alt.Chart(melted_probs).mark_area(opacity=0.7).encode(
                 x=alt.X('Date:T', title='Lookback Timeline (20 Years)'),
                 y=alt.Y('Probability:Q', stack='normalize', title='Model Probability Allocation'),
                 color=alt.Color('Regime:N', scale=alt.Scale(domain=['Bull', 'Neutral', 'Bear', 'Crisis'], 
                                                             range=['#3fb950', '#8b949e', '#d2a8ff', '#f85149'])),
                 tooltip=['Date:T', 'Regime:N', alt.Tooltip('Probability:Q', format='.1%')]
-            ).properties(height=400)
+            ).properties(height=500).interactive(bind_y=False) # Allow X-axis zooming and panning
             
             # 2. Black Swan Intersection Lines
             swan_rules = alt.Chart(swan_df).mark_rule(color='#ffcc00', strokeWidth=2, strokeDash=[4, 4]).encode(
@@ -375,7 +375,7 @@ elif page == "Final RWRA Engine":
             
             # 3. Text Overlay for visually flagging the events
             swan_text = alt.Chart(swan_df).mark_text(
-                align='left', baseline='middle', dx=5, dy=-160, color='#ffcc00', fontSize=12, angle=270, fontWeight='bold'
+                align='left', baseline='middle', dx=5, dy=-210, color='#ffcc00', fontSize=12, angle=270, fontWeight='bold'
             ).encode(
                 x='Date:T',
                 text='Event_Narrative:N'
@@ -384,6 +384,19 @@ elif page == "Final RWRA Engine":
             final_chart = alt.layer(area_chart, swan_rules, swan_text).resolve_scale(y='shared')
             st.altair_chart(final_chart, use_container_width=True)
             
+            # Add granular dataframe view of the Swan Events
+            with st.expander("📋 Expand to strictly audit the algorithm's defense during these exact Black Swan events", expanded=False):
+                # Filter probabilities matrix exactly matching the dates of our Swan Dictionary
+                audit_df = pd.merge(swan_df, probs, left_on='Date', right_index=True, how='inner')
+                audit_df['Date'] = audit_df['Date'].dt.strftime('%Y-%m-%d')
+                
+                # Clean up probabilistic formatting for display
+                for col in ['Bull', 'Neutral', 'Bear', 'Crisis']:
+                    if col in audit_df:
+                        audit_df[col] = (audit_df[col] * 100).map("{:.1f}%".format)
+                        
+                st.dataframe(audit_df[['Date', 'Event_Narrative', 'Crisis', 'Bear', 'Neutral', 'Bull']].set_index('Date'), use_container_width=True)
+                
         except Exception as e:
             st.error(f"Failed to compile Altair rendering engine: {e}")
             
