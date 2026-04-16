@@ -96,6 +96,7 @@ def run_rwra_backtest():
     portfolio_returns = []
     daily_blended_weights = []
     action_triggered = []
+    daily_turnover = []
     
     current_portfolio = np.zeros(6)
     
@@ -114,6 +115,7 @@ def run_rwra_backtest():
         if i == 1:
             current_portfolio = target_weights
             action_triggered.append(True)
+            daily_turnover.append(1.0) # Initial entry is 100% turnover
             day_ret = np.dot(current_portfolio, day_rets)
             
             # Market drift
@@ -125,10 +127,12 @@ def run_rwra_backtest():
             
             if turnover_delta > 0.05: # Strict 5% Turnover Threshold
                 action_triggered.append(True)
+                daily_turnover.append(turnover_delta)
                 t_cost = turnover_delta * 0.0010
                 current_portfolio = target_weights
             else:
                 action_triggered.append(False)
+                daily_turnover.append(0.0)
                 t_cost = 0 
                 
             day_ret = np.dot(current_portfolio, day_rets) - t_cost
@@ -143,6 +147,7 @@ def run_rwra_backtest():
     backtest_df = pd.DataFrame(index=probs.index[1:])
     backtest_df['RWRA_Return'] = portfolio_returns
     backtest_df['Action_Triggered'] = action_triggered
+    backtest_df['Turnover'] = daily_turnover
     backtest_df['Cumulative_Return'] = (1 + backtest_df['RWRA_Return']).cumprod()
     
     # Attach the weights matrix to backtest_df for transaction logging

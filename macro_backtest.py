@@ -112,6 +112,7 @@ def run_backtest():
     portfolio_returns = []
     regimes_used = []
     action_triggered = []
+    daily_turnover = []
     
     weight_map = {
         "STRONG BULL": np.array([0.45, 0.40, 0.10, 0.05, 0.00]),
@@ -133,6 +134,7 @@ def run_backtest():
         if i == 1:
             current_portfolio = target_weights
             action_triggered.append(True)
+            daily_turnover.append(1.0) # 100% turnover on start
             ret = np.dot(current_portfolio, asset_vector)
             
             # Market drift
@@ -144,10 +146,12 @@ def run_backtest():
             
             if turnover > 0.05: # Strict 5% Turnover Threshold
                 action_triggered.append(True)
+                daily_turnover.append(turnover)
                 t_cost = turnover * 0.0010
                 current_portfolio = target_weights
             else:
                 action_triggered.append(False)
+                daily_turnover.append(0.0)
                 t_cost = 0 
                 
             ret = np.dot(current_portfolio, asset_vector)
@@ -165,6 +169,7 @@ def run_backtest():
     backtest_df = pd.DataFrame(index=scores.index[1:])
     backtest_df['Daily_Return'] = portfolio_returns
     backtest_df['Action_Triggered'] = action_triggered
+    backtest_df['Turnover'] = daily_turnover
     backtest_df['Regime'] = regimes_used
     backtest_df['Cumulative_Return'] = (1 + backtest_df['Daily_Return']).cumprod()
     

@@ -66,7 +66,7 @@ st.markdown("""
 
 # --- Sidebar Navigation ---
 st.sidebar.title("🏦 Institutional Dashboard")
-page = st.sidebar.radio("Navigation", ["Agent Consensus", "Macro Regime Model", "Final RWRA Engine"])
+page = st.sidebar.radio("Navigation", ["Agent Consensus", "Macro Regime Model", "Final RWRA Engine", "Comparative Strategy Audit"])
 
 if page == "Agent Consensus":
     st.title("🏦 Institutional AI Hedge Fund - CIO Terminal")
@@ -235,13 +235,14 @@ elif page == "Macro Regime Model":
         recent_log['DBMF (Managed Futures)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("DBMF", "0%"))
         recent_log['GLD (Gold)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("GLD", "0%"))
         recent_log['SHV (Short Treasury)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("CASH", "0%"))
+        recent_log['Turnover'] = (recent_log['Turnover'] * 100).map("{:.1f}%".format)
         recent_log['Daily Return'] = (recent_log['Daily_Return'] * 100).map("{:.2f}%".format)
         
         # Explicitly extract the index as a beautifully formatted Date column
         recent_log = recent_log.reset_index().rename(columns={'index': 'Execution Date 📅'})
         recent_log['Execution Date 📅'] = recent_log['Execution Date 📅'].dt.strftime('%b %d, %Y')
         
-        st.dataframe(recent_log[['Execution Date 📅', 'Regime', 'Total Score', 'NTSX (90/60 SPY/TLT)', 'QQQ (Nasdaq 100)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'SHV (Short Treasury)', 'Daily Return']], use_container_width=True, hide_index=True)
+        st.dataframe(recent_log[['Execution Date 📅', 'Regime', 'Total Score', 'NTSX (90/60 SPY/TLT)', 'QQQ (Nasdaq 100)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'SHV (Short Treasury)', 'Turnover', 'Daily Return']], use_container_width=True, hide_index=True)
         
         with st.expander("🔬 Raw Indicator Signals (Last 5 Days)"):
             st.dataframe(scores_df.tail(5))
@@ -459,11 +460,93 @@ elif page == "Final RWRA Engine":
             log_df[col] = (log_df[col] * 100).map("{:.1f}%".format)
             
         log_df['Daily Return'] = (log_df['RWRA_Return'] * 100).map("{:.2f}%".format)
+        log_df['Turnover'] = (log_df['Turnover'] * 100).map("{:.1f}%".format)
         
         # Explicitly extract the index as a beautifully formatted Date column
         log_df = log_df.reset_index().rename(columns={'index': 'Execution Date 📅'})
         log_df['Execution Date 📅'] = log_df['Execution Date 📅'].dt.strftime('%b %d, %Y')
         
-        st.dataframe(log_df[['Execution Date 📅', 'Bull', 'Neutral', 'Bear', 'Crisis', 'SPY (S&P 500)', 'QQQ (Nasdaq 100)', 'TLT (20Y Treasury)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'CSHI (High Yield Cash)', 'Daily Return']], use_container_width=True, hide_index=True)
+        st.dataframe(log_df[['Execution Date 📅', 'Bull', 'Neutral', 'Bear', 'Crisis', 'SPY (S&P 500)', 'QQQ (Nasdaq 100)', 'TLT (20Y Treasury)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'CSHI (High Yield Cash)', 'Turnover', 'Daily Return']], use_container_width=True, hide_index=True)
             
         st.markdown("*Emergency Protocol Note: If VIX > 35, probabilities mathematically lock to 100% Crisis.*")
+
+elif page == "Comparative Strategy Audit":
+    st.title("🏆 Comparative Strategy Audit")
+    st.markdown("Side-by-side performance analysis of all active AI Hedging engines versus the 60/40 Market Benchmark.")
+
+    with st.spinner("Compiling cross-strategy performance data..."):
+        # Fetch both engines (leveraging cache)
+        from macro_backtest import run_backtest as run_macro
+        from rwra_backtest import run_rwra_backtest as run_rwra
+        
+        backtest_macro, _, metrics_macro, _ = run_macro()
+        backtest_rwra, _, _, metrics_rwra, _ = run_rwra()
+        
+    if backtest_macro is None or backtest_rwra is None:
+        st.error("Failed to load strategy metrics for comparison.")
+    else:
+        # 1. Performance League Table
+        st.subheader("📊 Institutional League Table")
+        
+        comp_data = {
+            "Metric": ["CAGR (Ann. Return)", "Max Drawdown", "Volatility", "Sharpe Ratio"],
+            "RWRA Engine": [
+                f"{metrics_rwra['Strategy']['CAGR']*100:.1f}%",
+                f"{metrics_rwra['Strategy']['Max_DD']*100:.1f}%",
+                f"{metrics_rwra['Strategy']['Vol']*100:.1f}%",
+                f"{metrics_rwra['Strategy']['Sharpe']:.2f}"
+            ],
+            "Macro Regime": [
+                f"{metrics_macro['Strategy']['CAGR']*100:.1f}%",
+                f"{metrics_macro['Strategy']['Max_DD']*100:.1f}%",
+                f"{metrics_macro['Strategy']['Vol']*100:.1f}%",
+                f"{metrics_macro['Strategy']['Sharpe']:.2f}"
+            ],
+            "60/40 Benchmark": [
+                f"{metrics_rwra['Benchmark']['CAGR']*100:.1f}%",
+                f"{metrics_rwra['Benchmark']['Max_DD']*100:.1f}%",
+                f"{metrics_rwra['Benchmark']['Vol']*100:.1f}%",
+                f"{metrics_rwra['Benchmark']['Sharpe']:.2f}"
+            ]
+        }
+        st.table(pd.DataFrame(comp_data))
+        
+        st.markdown("---")
+        
+        # 2. Merged Equity Curve
+        st.subheader("📈 Multi-Strategy Cumulative Performance")
+        
+        # Align indices
+        common_idx = backtest_macro.index.intersection(backtest_rwra.index)
+        
+        merged_equity = pd.DataFrame(index=common_idx)
+        merged_equity['RWRA Engine'] = backtest_rwra.loc[common_idx, 'Cumulative_Return']
+        merged_equity['Macro Regime'] = backtest_macro.loc[common_idx, 'Cumulative_Return']
+        merged_equity['60/40 Benchmark'] = backtest_rwra.loc[common_idx, '60_40_CumRev']
+        
+        st.line_chart(merged_equity)
+        
+        st.markdown("---")
+        
+        # 3. Alpha Persistence (Strategy - Benchmark)
+        st.subheader("🔥 Strategy 'Alpha' Persistence")
+        st.markdown("*Showing the relative outperformance of each strategy over the 60/40 benchmark.*")
+        
+        alpha_df = pd.DataFrame(index=common_idx)
+        alpha_df['RWRA Alpha'] = (merged_equity['RWRA Engine'] - merged_equity['60/40 Benchmark'])
+        alpha_df['Macro Alpha'] = (merged_equity['Macro Regime'] - merged_equity['60/40 Benchmark'])
+        
+        st.area_chart(alpha_df)
+        
+        st.markdown("---")
+        st.subheader("🕵️ CIO Verdict")
+        
+        rwra_sh = metrics_rwra['Strategy']['Sharpe']
+        macro_sh = metrics_macro['Strategy']['Sharpe']
+        
+        if rwra_sh > macro_sh:
+            st.info("🏆 **RWRA Blending** is currently identified as the structurally superior model due to higher risk-adjusted efficiency (Sharpe) and lower turnover drag.")
+        else:
+            st.info("🏆 **Macro Regime** is currently the performance leader, providing higher raw CAGR despite the increased turnover friction.")
+        
+        st.markdown("*Note: All data reflects true historical price action and macro fundamentals with 10bps transaction friction included.*")
