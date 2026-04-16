@@ -9,68 +9,85 @@ st.set_page_config(page_title="Hedge Fund AI Dashboard", page_icon="📈", layou
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0d1117;
-        color: #e6edf3;
-        font-family: 'Inter', sans-serif;
+        background-color: #000000;
+        color: #f0f6fc;
+        font-family: 'Inter', -apple-system, sans-serif;
     }
     .metric-card {
-        background: rgba(30, 41, 59, 0.7);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: linear-gradient(145deg, #0f0f0f, #050505);
+        border: 1px solid rgba(0, 242, 255, 0.2);
         border-radius: 12px;
-        padding: 20px;
+        padding: 25px;
         text-align: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        transition: transform 0.2s;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        transition: all 0.3s ease;
     }
     .metric-card:hover {
         transform: translateY(-5px);
-        background: rgba(40, 51, 69, 0.9);
+        border: 1px solid rgba(0, 242, 255, 0.8);
+        box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
     }
     .metric-title {
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         color: #8b949e;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 10px;
+        letter-spacing: 2px;
+        margin-bottom: 12px;
+        font-weight: 600;
     }
     .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #58a6ff;
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #00f2ff;
+        text-shadow: 0 0 10px rgba(0, 242, 255, 0.3);
     }
     .trend-up {
-        color: #3fb950;
+        color: #00ff88;
         font-size: 1rem;
+        font-weight: bold;
     }
     .trend-down {
-        color: #f85149;
+        color: #ff3333;
         font-size: 1rem;
+        font-weight: bold;
     }
     .agent-box {
-        background: linear-gradient(145deg, #161b22, #0d1117);
-        border: 1px solid #30363d;
-        border-radius: 8px;
+        background: #0a0a0a;
+        border-left: 4px solid #58a6ff;
+        border-radius: 4px;
         padding: 15px;
         margin-bottom: 15px;
+        box-shadow: 5px 5px 15px rgba(0,0,0,0.4);
     }
     .agent-name {
-        font-weight: bold;
-        font-size: 1.1rem;
+        font-weight: 900;
+        font-size: 1rem;
         color: #d2a8ff;
+        text-transform: uppercase;
     }
-    .agent-verdict-bullish { color: #3fb950; font-weight:bold; }
-    .agent-verdict-bearish { color: #f85149; font-weight:bold; }
-    .agent-verdict-neutral { color: #f0f6fc; font-weight:bold; }
+    .agent-verdict-bullish { color: #00ff88; font-weight:bold; }
+    .agent-verdict-bearish { color: #ff3333; font-weight:bold; }
+    .agent-verdict-neutral { color: #8b949e; font-weight:bold; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Sidebar Navigation ---
-st.sidebar.title("🏦 Institutional Dashboard")
+st.sidebar.markdown('<h1 style="color:#00f2ff; font-size:1.5rem; text-shadow: 0 0 10px rgba(0,242,255,0.5);">🏦 CIO TERMINAL</h1>', unsafe_allow_html=True)
+st.sidebar.markdown("---")
+
+# Pulsing Status Indicator
+st.sidebar.markdown("""
+<div style="background:rgba(0,242,255,0.1); border:1px solid #00f2ff; border-radius:8px; padding:10px; text-align:center; margin-bottom:20px;">
+    <span style="color:#00f2ff; font-size:0.7rem; text-transform:uppercase; letter-spacing:2px;">System Status</span><br>
+    <span style="color:#00ff88; font-weight:bold; font-size:1rem;">● LIVE CONNECTION</span>
+</div>
+""", unsafe_allow_html=True)
+
 page = st.sidebar.radio("Navigation", ["Agent Consensus", "Macro Regime Model", "Final RWRA Engine", "Comparative Strategy Audit"])
 
 if page == "Agent Consensus":
-    st.title("🏦 Institutional AI Hedge Fund - CIO Terminal")
-    st.markdown("Real-time Committee Consensus & Portfolio Pipeline")
+    st.markdown('<h1 style="color:#00f2ff; text-shadow: 0 0 20px rgba(0,242,255,0.5); font-weight:800;">🏦 Institutional AI Hedge Fund</h1>', unsafe_allow_html=True)
+    st.markdown("<p style='color:#8b949e; letter-spacing:2px; text-transform:uppercase; font-size:0.8rem;'>CIO Terminal | Committee Consensus Pipeline</p>", unsafe_allow_html=True)
 
     # MOCK DATA
     tickers = ["NVDA", "TSLA", "PLTR", "AMD", "AAPL"]
@@ -93,11 +110,11 @@ if page == "Agent Consensus":
         st.subheader("🤖 The Committee Actions (Live Agents)")
         selected_ticker = st.selectbox("Select Asset for Deep Dive", tickers)
         
-        st.markdown(f'<div class="agent-box"><span class="agent-name">Wolf (Fundamentals):</span> Reviewed {selected_ticker} PE/Revenue. <br>Verdict: <span class="agent-verdict-bullish">BULLISH</span> (Confidence: 85%)</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="agent-box"><span class="agent-name">Munger (Value/News):</span> Processed recent sector data for {selected_ticker}. <br>Verdict: <span class="agent-verdict-neutral">NEUTRAL</span> (Confidence: 60%)</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="agent-box"><span class="agent-name">Aman (Insider Flow):</span> Detected executive share acquisition in last 48hr. <br>Verdict: <span class="agent-verdict-bullish">BULLISH</span> (Confidence: 92%)</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="agent-box"><span class="agent-name">Cohen (Price Action):</span> Momentum flags triggered on 5m candles. <br>Verdict: <span class="agent-verdict-bullish">BULLISH</span> (Confidence: 78%)</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="agent-box"><span class="agent-name">Dalio (Macro/Risk):</span> Adjusted for market beta and sector volatility. <br>Verdict: <span class="agent-verdict-bearish">BEARISH</span> (Confidence: 55%)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="agent-box" style="border-color:#00f2ff;"><span class="agent-name">Wolf (Fundamentals):</span> Reviewed {selected_ticker} PE/Revenue. <br>Verdict: <span class="agent-verdict-bullish">BULLISH</span> (Confidence: 85%)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="agent-box" style="border-color:#8b949e;"><span class="agent-name">Munger (Value/News):</span> Processed recent sector data for {selected_ticker}. <br>Verdict: <span class="agent-verdict-neutral">NEUTRAL</span> (Confidence: 60%)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="agent-box" style="border-color:#00ff88;"><span class="agent-name">Aman (Insider Flow):</span> Detected executive share acquisition in last 48hr. <br>Verdict: <span class="agent-verdict-bullish">BULLISH</span> (Confidence: 92%)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="agent-box" style="border-color:#58a6ff;"><span class="agent-name">Cohen (Price Action):</span> Momentum flags triggered on 5m candles. <br>Verdict: <span class="agent-verdict-bullish">BULLISH</span> (Confidence: 78%)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="agent-box" style="border-color:#ff3333;"><span class="agent-name">Dalio (Macro/Risk):</span> Adjusted for market beta and sector volatility. <br>Verdict: <span class="agent-verdict-bearish">BEARISH</span> (Confidence: 55%)</div>', unsafe_allow_html=True)
         
     with col2:
         st.subheader("CIO Final Allocation")
@@ -138,17 +155,28 @@ elif page == "Macro Regime Model":
         current_score = scores_df['total_score'].iloc[-1]
         current_regime = scores_df['Regime'].iloc[-1]
         
-        st.markdown("### 📡 Live Risk Engine")
+        # Dynamic color based on regime
+        regime_colors = {
+            "STRONG BULL": "#00ff88",
+            "BULL": "#58a6ff",
+            "NEUTRAL": "#8b949e",
+            "RISK OFF": "#d2a8ff",
+            "CRISIS": "#ff3333"
+        }
+        accent = regime_colors.get(current_regime, "#00f2ff")
+        
+        st.markdown(f"### 📡 <span style='color:{accent};'>Live Risk Engine</span>", unsafe_allow_html=True)
         
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown(f'<div class="metric-card"><div class="metric-title">Current Regime</div><div class="metric-value">{current_regime}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card" style="border-color:{accent};"><div class="metric-title">Current Regime</div><div class="metric-value" style="color:{accent};">{current_regime}</div></div>', unsafe_allow_html=True)
         with c2:
             st.markdown(f'<div class="metric-card"><div class="metric-title">Composite Risk Score</div><div class="metric-value">{current_score:.1f} / 20</div></div>', unsafe_allow_html=True)
         with c3:
             # Crash risk proxy based on score
             risk_pct = max(0, min(100, (1 - (current_score + 20) / 40) * 100))
-            st.markdown(f'<div class="metric-card"><div class="metric-title">Systematic Crash Risk</div><div class="metric-value">{risk_pct:.1f}%</div></div>', unsafe_allow_html=True)
+            risk_color = "#ff3333" if risk_pct > 50 else "#00ff88" if risk_pct < 20 else "#00f2ff"
+            st.markdown(f'<div class="metric-card" style="border-color:{risk_color};"><div class="metric-title">Systematic Crash Risk</div><div class="metric-value" style="color:{risk_color};">{risk_pct:.1f}%</div></div>', unsafe_allow_html=True)
             
         st.markdown("---")
         st.subheader("⚡ Live Action Required Console")
@@ -250,8 +278,8 @@ elif page == "Macro Regime Model":
         st.markdown("*Note: Uses FRED datasets (M2, LEI, Spreads) and YFinance price action proxies to ensure zero look-ahead bias spanning two decades.*")
 
 elif page == "Final RWRA Engine":
-    st.title("⚖️ Regime-Weighted Risk Allocation (RWRA)")
-    st.markdown("Dynamic Probabilistic Allocation Engine (vFinal)")
+    st.markdown('<h1 style="color:#d2a8ff; text-shadow: 0 0 20px rgba(210,168,255,0.4); font-weight:800;">⚖️ Regime-Weighted Risk Allocation</h1>', unsafe_allow_html=True)
+    st.markdown("<p style='color:#8b949e; letter-spacing:2px; text-transform:uppercase; font-size:0.8rem;'>Dynamic Probabilistic Allocation Engine (vFinal)</p>", unsafe_allow_html=True)
     
     try:
         from rwra_backtest import run_rwra_backtest
@@ -275,13 +303,13 @@ elif page == "Final RWRA Engine":
         
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            st.markdown(f'<div class="metric-card"><div class="metric-title">Bull</div><div class="metric-value" style="color:#3fb950;">{curr_probs["Bull"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card" style="border-color:#00ff88;"><div class="metric-title">Bull</div><div class="metric-value" style="color:#00ff88;">{curr_probs["Bull"]*100:.1f}%</div></div>', unsafe_allow_html=True)
         with c2:
-            st.markdown(f'<div class="metric-card"><div class="metric-title">Neutral</div><div class="metric-value" style="color:#f0f6fc;">{curr_probs["Neutral"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card" style="border-color:#8b949e;"><div class="metric-title">Neutral</div><div class="metric-value" style="color:#f0f6fc;">{curr_probs["Neutral"]*100:.1f}%</div></div>', unsafe_allow_html=True)
         with c3:
-            st.markdown(f'<div class="metric-card"><div class="metric-title">Bear</div><div class="metric-value" style="color:#d2a8ff;">{curr_probs["Bear"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card" style="border-color:#d2a8ff;"><div class="metric-title">Bear</div><div class="metric-value" style="color:#d2a8ff;">{curr_probs["Bear"]*100:.1f}%</div></div>', unsafe_allow_html=True)
         with c4:
-            st.markdown(f'<div class="metric-card"><div class="metric-title">Crisis</div><div class="metric-value" style="color:#f85149;">{curr_probs["Crisis"]*100:.1f}%</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card" style="border-color:#ff3333;"><div class="metric-title">Crisis</div><div class="metric-value" style="color:#ff3333;">{curr_probs["Crisis"]*100:.1f}%</div></div>', unsafe_allow_html=True)
             
         st.markdown("---")
         st.subheader("⚡ Live Action Required Console")
@@ -374,7 +402,7 @@ elif page == "Final RWRA Engine":
                 x=alt.X('Date:T', title='Lookback Timeline (20 Years)'),
                 y=alt.Y('Probability:Q', stack='normalize', title='Model Probability Allocation'),
                 color=alt.Color('Regime:N', scale=alt.Scale(domain=['Bull', 'Neutral', 'Bear', 'Crisis'], 
-                                                            range=['#3fb950', '#8b949e', '#d2a8ff', '#f85149'])),
+                                                            range=['#00ff88', '#8b949e', '#d2a8ff', '#ff3333'])),
                 tooltip=['Date:T', 'Regime:N', alt.Tooltip('Probability:Q', format='.1%')]
             ).properties(height=500).interactive(bind_y=False) # Allow X-axis zooming and panning
             
@@ -513,22 +541,31 @@ elif page == "Comparative Strategy Audit":
         
         st.markdown("---")
         
-        # 2. Merged Equity Curve
+        # 2. Merged Equity Curve (Altair for better colors)
         st.subheader("📈 Multi-Strategy Cumulative Performance")
         
         # Align indices
         common_idx = backtest_macro.index.intersection(backtest_rwra.index)
-        
         merged_equity = pd.DataFrame(index=common_idx)
         merged_equity['RWRA Engine'] = backtest_rwra.loc[common_idx, 'Cumulative_Return']
         merged_equity['Macro Regime'] = backtest_macro.loc[common_idx, 'Cumulative_Return']
         merged_equity['60/40 Benchmark'] = backtest_rwra.loc[common_idx, '60_40_CumRev']
         
-        st.line_chart(merged_equity)
+        melted_equity = merged_equity.reset_index().melt('index', var_name='Strategy', value_name='Cumulative Return')
+        
+        line_chart = alt.Chart(melted_equity).mark_line(strokeWidth=2).encode(
+            x=alt.X('index:T', title='Date'),
+            y=alt.Y('Cumulative Return:Q', title='Portfolio Value'),
+            color=alt.Color('Strategy:N', scale=alt.Scale(domain=['RWRA Engine', 'Macro Regime', '60/40 Benchmark'], 
+                                                        range=['#d2a8ff', '#00f2ff', '#8b949e'])),
+            tooltip=['index:T', 'Strategy:N', alt.Tooltip('Cumulative Return:Q', format='.2f')]
+        ).properties(height=400).interactive(bind_y=False)
+        
+        st.altair_chart(line_chart, use_container_width=True)
         
         st.markdown("---")
         
-        # 3. Alpha Persistence (Strategy - Benchmark)
+        # 3. Alpha Persistence (Strategy - Benchmark) using Altair
         st.subheader("🔥 Strategy 'Alpha' Persistence")
         st.markdown("*Showing the relative outperformance of each strategy over the 60/40 benchmark.*")
         
@@ -536,7 +573,17 @@ elif page == "Comparative Strategy Audit":
         alpha_df['RWRA Alpha'] = (merged_equity['RWRA Engine'] - merged_equity['60/40 Benchmark'])
         alpha_df['Macro Alpha'] = (merged_equity['Macro Regime'] - merged_equity['60/40 Benchmark'])
         
-        st.area_chart(alpha_df)
+        melted_alpha = alpha_df.reset_index().melt('index', var_name='Strategy', value_name='Alpha')
+        
+        alpha_chart = alt.Chart(melted_alpha).mark_area(opacity=0.4, line={'color': 'white', 'strokeWidth': 1}).encode(
+            x=alt.X('index:T', title='Date'),
+            y=alt.Y('Alpha:Q', title='Alpha (vs 60/40)'),
+            color=alt.Color('Strategy:N', scale=alt.Scale(domain=['RWRA Alpha', 'Macro Alpha'], 
+                                                        range=['#d2a8ff', '#00f2ff'])),
+            tooltip=['index:T', 'Strategy:N', alt.Tooltip('Alpha:Q', format='.2f')]
+        ).properties(height=400).interactive(bind_y=False)
+        
+        st.altair_chart(alpha_chart, use_container_width=True)
         
         st.markdown("---")
         st.subheader("🕵️ CIO Verdict")
