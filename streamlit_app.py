@@ -208,7 +208,7 @@ elif page == "Macro Regime Model":
             *(Note: SGOV/SHV proxies Cash/Short-duration Treasuries. NTSX provides 90/60 levered SPY/TLT foundational exposure).*
             """)
             
-        st.subheader("📜 Historical Execution Ledger (Last 10 Physical Trades)")
+        st.subheader("📜 Historical Execution Ledger (Last 3 Years of Physical Trades)")
         
         # Build the historical dataframe showing weights based on the Regime
         weight_map = {
@@ -220,8 +220,14 @@ elif page == "Macro Regime Model":
         }
         
         # ACTUALLY filter the dataframe purely to periods where a >5% Rebalance effectively executed
+        import datetime
+        three_years_ago = pd.Timestamp(datetime.date.today()) - pd.DateOffset(years=3)
+        
         action_log = backtest_df[backtest_df['Action_Triggered'] == True].copy()
-        recent_log = action_log.tail(10)
+        recent_log = action_log[action_log.index >= three_years_ago]
+        
+        if recent_log.empty:
+            recent_log = action_log.tail(5)
         
         recent_log['Total Score'] = scores_df['total_score'].loc[recent_log.index].map("{:.1f}".format)
         recent_log['NTSX (90/60 SPY/TLT)'] = recent_log['Regime'].map(lambda x: weight_map.get(x, {}).get("NTSX", "0%"))
@@ -419,14 +425,21 @@ elif page == "Final RWRA Engine":
             *Emergency Protocol:* If the **VIX crosses 35**, all calculations are aborted and the regime strictly locks to 100% Crisis.
             """)
             
-        st.subheader("📜 Historical Execution Ledger (Last 10 Physical Trades)")
+        st.subheader("📜 Historical Execution Ledger (Last 3 Years of Physical Trades)")
         
         # Filter purely for Action Trade dates!
         action_log = backtest_df[backtest_df['Action_Triggered'] == True].copy()
         
-        # We merge backtest weights, probs and returns for the last 10 execution days
-        log_df = pd.merge(probs, action_log[['RWRA_Return', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']], left_index=True, right_index=True)
-        log_df = log_df.tail(10)
+        # ACTUALLY filter the dataframe purely to periods within the last 3 years
+        import datetime
+        three_years_ago = pd.Timestamp(datetime.date.today()) - pd.DateOffset(years=3)
+        recent_log = action_log[action_log.index >= three_years_ago]
+        
+        if recent_log.empty:
+            recent_log = action_log.tail(5)
+            
+        # We merge backtest weights, probs and returns for the execution days
+        log_df = pd.merge(probs, recent_log[['RWRA_Return', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']], left_index=True, right_index=True)
         
         log_df = log_df.rename(columns={
             'SPY': 'SPY (S&P 500)',
