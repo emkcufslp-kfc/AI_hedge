@@ -267,8 +267,8 @@ elif page == "Macro Regime Model":
         recent_log['Daily Return'] = (recent_log['Daily_Return'] * 100).map("{:.2f}%".format)
         
         # Explicitly extract the index as a beautifully formatted Date column
-        recent_log = recent_log.reset_index().rename(columns={'index': 'Execution Date 📅'})
-        recent_log['Execution Date 📅'] = recent_log['Execution Date 📅'].dt.strftime('%b %d, %Y')
+        recent_log = recent_log.rename_axis('Date').reset_index()
+        recent_log['Execution Date 📅'] = recent_log['Date'].dt.strftime('%b %d, %Y')
         
         st.dataframe(recent_log[['Execution Date 📅', 'Regime', 'Total Score', 'NTSX (90/60 SPY/TLT)', 'QQQ (Nasdaq 100)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'SHV (Short Treasury)', 'Turnover', 'Daily Return']], use_container_width=True, hide_index=True)
         
@@ -472,7 +472,7 @@ elif page == "Final RWRA Engine":
             recent_log = action_log.tail(5)
             
         # We merge backtest weights, probs and returns for the execution days
-        log_df = pd.merge(probs, recent_log[['RWRA_Return', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']], left_index=True, right_index=True)
+        log_df = pd.merge(probs, recent_log[['RWRA_Return', 'SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI', 'Turnover']], left_index=True, right_index=True)
         
         log_df = log_df.rename(columns={
             'SPY': 'SPY (S&P 500)',
@@ -491,8 +491,8 @@ elif page == "Final RWRA Engine":
         log_df['Turnover'] = (log_df['Turnover'] * 100).map("{:.1f}%".format)
         
         # Explicitly extract the index as a beautifully formatted Date column
-        log_df = log_df.reset_index().rename(columns={'index': 'Execution Date 📅'})
-        log_df['Execution Date 📅'] = log_df['Execution Date 📅'].dt.strftime('%b %d, %Y')
+        log_df = log_df.rename_axis('Date').reset_index()
+        log_df['Execution Date 📅'] = log_df['Date'].dt.strftime('%b %d, %Y')
         
         st.dataframe(log_df[['Execution Date 📅', 'Bull', 'Neutral', 'Bear', 'Crisis', 'SPY (S&P 500)', 'QQQ (Nasdaq 100)', 'TLT (20Y Treasury)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'CSHI (High Yield Cash)', 'Turnover', 'Daily Return']], use_container_width=True, hide_index=True)
             
@@ -551,7 +551,7 @@ elif page == "Comparative Strategy Audit":
         merged_equity['Macro Regime'] = backtest_macro.loc[common_idx, 'Cumulative_Return']
         merged_equity['60/40 Benchmark'] = backtest_rwra.loc[common_idx, '60_40_CumRev']
         
-        melted_equity = merged_equity.reset_index().melt('index', var_name='Strategy', value_name='Cumulative Return')
+        melted_equity = merged_equity.rename_axis('Date').reset_index().melt('Date', var_name='Strategy', value_name='Cumulative Return')
         
         line_chart = alt.Chart(melted_equity).mark_line(strokeWidth=2).encode(
             x=alt.X('index:T', title='Date'),
@@ -573,7 +573,7 @@ elif page == "Comparative Strategy Audit":
         alpha_df['RWRA Alpha'] = (merged_equity['RWRA Engine'] - merged_equity['60/40 Benchmark'])
         alpha_df['Macro Alpha'] = (merged_equity['Macro Regime'] - merged_equity['60/40 Benchmark'])
         
-        melted_alpha = alpha_df.reset_index().melt('index', var_name='Strategy', value_name='Alpha')
+        melted_alpha = alpha_df.rename_axis('Date').reset_index().melt('Date', var_name='Strategy', value_name='Alpha')
         
         alpha_chart = alt.Chart(melted_alpha).mark_area(opacity=0.4, line={'color': 'white', 'strokeWidth': 1}).encode(
             x=alt.X('index:T', title='Date'),
