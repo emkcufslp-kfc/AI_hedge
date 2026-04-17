@@ -132,7 +132,7 @@ if page == "Agent Consensus":
 
 elif page == "Macro Regime Model":
     st.title("🌍 Institutional Macro Regime Engine")
-    st.markdown("20-Indicator Real-Time Scoring System & 20-Year Backtest")
+    st.markdown("13-signal macro score scaled to a 20-point range")
     
     # We dynamically load macro_backtest
     try:
@@ -195,6 +195,7 @@ elif page == "Macro Regime Model":
             t4.metric("DBMF (Managed Futures)", f"${latest_prices['DBMF']:.2f}")
             
         st.markdown("---")
+        st.caption(f"Backtest sample: {metrics_dict['Backtest']['Start_Date']} to {metrics_dict['Backtest']['End_Date']}")
         st.subheader("🏆 Strategy Performance Metrics (vs 60/40)")
         st.markdown("*Metrics explicitly include **10 basis points** physical transaction friction extracted per threshold rebalance round-trip.*")
         
@@ -212,7 +213,7 @@ elif page == "Macro Regime Model":
             st.metric("Sharpe Ratio", f"{strat_mets['Sharpe']:.2f}", f"{strat_mets['Sharpe'] - bench_mets['Sharpe']:.2f}")
             
         st.markdown("---")
-        st.subheader("📊 20-Year Historical Proof (Actual Data Proxy)")
+        st.subheader("📊 Historical Equity Curve")
         
         plot_df = pd.DataFrame({
             'Macro Engine Strategy': backtest_df['Cumulative_Return'],
@@ -224,7 +225,7 @@ elif page == "Macro Regime Model":
         
         with st.expander("📚 How the Macro Regime Strategy Works", expanded=False):
             st.markdown("""
-            **The Institutional Macro Regime Engine** explicitly shifts capital to defensive assets or risk-seeking assets depending on a 20-point composite score built from 13 fundamental tracking datasets.
+            **The Institutional Macro Regime Engine** explicitly shifts capital to defensive assets or risk-seeking assets depending on a 13-signal composite score that is scaled onto a 20-point range for readability.
             
             Based on the trailing sum of fundamental momentum across 4 pillars (Economic Growth, Credit Spreads, Market Liquidity, and Market Trends), the model assigns one of 5 distinct Regimes:
             - **STRONG BULL (>8)**: 45% NTSX, 40% QQQ, 10% DBMF, 5% GLD
@@ -279,7 +280,7 @@ elif page == "Macro Regime Model":
 
 elif page == "Final RWRA Engine":
     st.markdown('<h1 style="color:#d2a8ff; text-shadow: 0 0 20px rgba(210,168,255,0.4); font-weight:800;">⚖️ Regime-Weighted Risk Allocation</h1>', unsafe_allow_html=True)
-    st.markdown("<p style='color:#8b949e; letter-spacing:2px; text-transform:uppercase; font-size:0.8rem;'>Dynamic Probabilistic Allocation Engine (vFinal)</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#8b949e; letter-spacing:2px; text-transform:uppercase; font-size:0.8rem;'>Dynamic Probabilistic Allocation Engine (heuristic regime blend)</p>", unsafe_allow_html=True)
     
     try:
         from rwra_backtest import run_rwra_backtest
@@ -313,12 +314,19 @@ elif page == "Final RWRA Engine":
             
         st.markdown("---")
         st.subheader("⚡ Live Action Required Console")
-        action_triggered_today = backtest_df['Action_Triggered'].iloc[-1]
+        advisory = metrics_dict.get('Advisory', {})
+        action_triggered_today = advisory.get('Action_Needed', backtest_df['Action_Triggered'].iloc[-1])
         
         if action_triggered_today:
-            st.error("🚨 **REBALANCE TRIGGERED TODAY!** The portfolio mathematically breached the >5% physical drift tolerance boundary. Execute the new weights below.", icon="🚨")
+            st.error(f"🚨 **REBALANCE TRIGGERED TODAY!** The portfolio is {advisory.get('Turnover_To_Target', 0.0) * 100:.1f}% away from the latest target mix. Execute the target weights below.", icon="🚨")
         else:
             st.success("✅ **HOLD STATUS (NO ACTION REQUIRED).** The physical portfolio remains within the 5% tolerance drift band of the previously executed target.", icon="✅")
+
+        st.caption(
+            "Regime-shift diagnostics: "
+            f"ΔP(L1)={advisory.get('Prob_Shift_To_Last_Exec', 0.0):.2f}, "
+            f"Crisis P={advisory.get('Crisis_Prob', 0.0) * 100:.1f}%."
+        )
             
         with st.expander("💳 Current Target Ticket Execution Pricing", expanded=False):
             t1, t2, t3, t4, t5, t6 = st.columns(6)
@@ -330,6 +338,7 @@ elif page == "Final RWRA Engine":
             t6.metric("CSHI", f"${latest_prices['CSHI']:.2f}")
             
         st.markdown("---")
+        st.caption(f"Backtest sample: {metrics_dict['Backtest']['Start_Date']} to {metrics_dict['Backtest']['End_Date']}")
         st.subheader("🏆 Strategy Performance Metrics (vs 60/40)")
         st.markdown("*Metrics explicitly include **10 basis points** physical transaction friction extracted per threshold rebalance round-trip.*")
         
@@ -364,7 +373,7 @@ elif page == "Final RWRA Engine":
                 st.progress(weight)
                 
         with col2:
-            st.subheader("📈 RWRA 20-Year Equity Curve")
+            st.subheader("📈 RWRA Historical Equity Curve")
             plot_df = pd.DataFrame({
                 'RWRA Strategy (12.4% Target)': backtest_df['Cumulative_Return'],
                 '60/40 Benchmark': backtest_df['60_40_CumRev']
@@ -399,7 +408,7 @@ elif page == "Final RWRA Engine":
             
             # 1. Base Layer Area Curve (Now Fully Interactive)
             area_chart = alt.Chart(melted_probs).mark_area(opacity=0.7).encode(
-                x=alt.X('Date:T', title='Lookback Timeline (20 Years)'),
+                x=alt.X('Date:T', title='Backtest Timeline'),
                 y=alt.Y('Probability:Q', stack='normalize', title='Model Probability Allocation'),
                 color=alt.Color('Regime:N', scale=alt.Scale(domain=['Bull', 'Neutral', 'Bear', 'Crisis'], 
                                                             range=['#00ff88', '#8b949e', '#d2a8ff', '#ff3333'])),
@@ -443,7 +452,7 @@ elif page == "Final RWRA Engine":
         # 1. Strategy Logic & How it works
         with st.expander("📚 How the RWRA Strategy Works", expanded=False):
             st.markdown("""
-            **Regime-Weighted Risk Allocation (RWRA)** abandons traditional static portfolios (like 60/40) for a dynamic, mathematically pure engine that adjusts to macroeconomic reality every single day.
+            **Regime-Weighted Risk Allocation (RWRA)** replaces a static portfolio with a daily-updated heuristic blend of four macro regimes.
             
             **The Engine calculates a blend of 4 Regimes based on 5 Core Variables:**
             1. **Yield Curve (`T10Y2Y`)**: An inverted yield curve indicates recession risk.
@@ -452,8 +461,8 @@ elif page == "Final RWRA Engine":
             4. **Volatility (`^VIX`)**: Market implied risk over 20 triggers bearish signals.
             5. **Price Trend (`^GSPC`)**: S&P 500 trading below its 200-day moving average confirms a downtrend.
             
-            Based on how many of these indicators signal danger, the engine assigns specific **Probabilities** to four regimes: *Bull, Neutral, Bear, and Crisis*. 
-            Asset weights are mathematically blended across these probabilities daily, removing human emotion.
+            Based on how many of these indicators signal danger, the engine assigns smooth **heuristic probabilities** to four regimes: *Bull, Neutral, Bear, and Crisis*. 
+            Asset weights are then blended across those regime probabilities daily.
             
             *Emergency Protocol:* If the **VIX crosses 35**, all calculations are aborted and the regime strictly locks to 100% Crisis.
             """)
@@ -496,11 +505,12 @@ elif page == "Final RWRA Engine":
         
         st.dataframe(log_df[['Execution Date 📅', 'Bull', 'Neutral', 'Bear', 'Crisis', 'SPY (S&P 500)', 'QQQ (Nasdaq 100)', 'TLT (20Y Treasury)', 'DBMF (Managed Futures)', 'GLD (Gold)', 'CSHI (High Yield Cash)', 'Turnover', 'Daily Return']], use_container_width=True, hide_index=True)
             
-        st.markdown("*Emergency Protocol Note: If VIX > 35, probabilities mathematically lock to 100% Crisis.*")
+        st.markdown("*Emergency Protocol Note: If VIX > 35, probabilities mathematically lock to 100% Crisis. The displayed target weights are the latest recommended mix, not post-drift holdings.*")
 
 elif page == "Comparative Strategy Audit":
     st.title("🏆 Comparative Strategy Audit")
     st.markdown("Side-by-side performance analysis of all active AI Hedging engines versus the 60/40 Market Benchmark.")
+    import altair as alt
 
     with st.spinner("Compiling cross-strategy performance data..."):
         # Fetch both engines (leveraging cache)
@@ -554,11 +564,11 @@ elif page == "Comparative Strategy Audit":
         melted_equity = merged_equity.rename_axis('Date').reset_index().melt('Date', var_name='Strategy', value_name='Cumulative Return')
         
         line_chart = alt.Chart(melted_equity).mark_line(strokeWidth=2).encode(
-            x=alt.X('index:T', title='Date'),
+            x=alt.X('Date:T', title='Date'),
             y=alt.Y('Cumulative Return:Q', title='Portfolio Value'),
             color=alt.Color('Strategy:N', scale=alt.Scale(domain=['RWRA Engine', 'Macro Regime', '60/40 Benchmark'], 
                                                         range=['#d2a8ff', '#00f2ff', '#8b949e'])),
-            tooltip=['index:T', 'Strategy:N', alt.Tooltip('Cumulative Return:Q', format='.2f')]
+            tooltip=['Date:T', 'Strategy:N', alt.Tooltip('Cumulative Return:Q', format='.2f')]
         ).properties(height=400).interactive(bind_y=False)
         
         st.altair_chart(line_chart, use_container_width=True)
@@ -576,11 +586,11 @@ elif page == "Comparative Strategy Audit":
         melted_alpha = alpha_df.rename_axis('Date').reset_index().melt('Date', var_name='Strategy', value_name='Alpha')
         
         alpha_chart = alt.Chart(melted_alpha).mark_area(opacity=0.4, line={'color': 'white', 'strokeWidth': 1}).encode(
-            x=alt.X('index:T', title='Date'),
+            x=alt.X('Date:T', title='Date'),
             y=alt.Y('Alpha:Q', title='Alpha (vs 60/40)'),
             color=alt.Color('Strategy:N', scale=alt.Scale(domain=['RWRA Alpha', 'Macro Alpha'], 
                                                         range=['#d2a8ff', '#00f2ff'])),
-            tooltip=['index:T', 'Strategy:N', alt.Tooltip('Alpha:Q', format='.2f')]
+            tooltip=['Date:T', 'Strategy:N', alt.Tooltip('Alpha:Q', format='.2f')]
         ).properties(height=400).interactive(bind_y=False)
         
         st.altair_chart(alpha_chart, use_container_width=True)

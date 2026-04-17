@@ -179,7 +179,11 @@ def run_backtest():
     
     metrics = {
         'Strategy': compute_metrics(backtest_df['Daily_Return']),
-        'Benchmark': compute_metrics(backtest_df['60_40_Ret'])
+        'Benchmark': compute_metrics(backtest_df['60_40_Ret']),
+        'Backtest': {
+            'Start_Date': backtest_df.index.min().strftime('%Y-%m-%d'),
+            'End_Date': backtest_df.index.max().strftime('%Y-%m-%d')
+        }
     }
     
     latest_prices = merged_df[['QQQ', 'DBMF', 'GLD', 'SHV', 'SPY', 'TLT']].iloc[-1].to_dict()

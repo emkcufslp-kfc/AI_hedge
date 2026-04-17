@@ -4,3 +4,6 @@ numpy
 yfinance
 SQLAlchemy
 celery
+altair
+python-dateutil
+pandas-datareader

@@ -1,6 +1,78 @@
 import pandas as pd
 import numpy as np
 
+
+ASSET_COLUMNS = ['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']
+REGIMES = ['Bull', 'Neutral', 'Bear', 'Crisis']
+
+
+def probability_from_bear_score(bear_score, vix_value):
+    """
+    Translate the integer bear score into a smooth regime distribution.
+    This remains heuristic, but it avoids abrupt jumps caused by hard-coded
+    bucket probabilities while preserving a crisis override for severe stress.
+    """
+    if vix_value > 35:
+        return np.array([0.0, 0.0, 0.0, 1.0])
+
+    regime_centers = np.array([0.0, 1.5, 3.5, 5.0])
+    distances = np.square(bear_score - regime_centers)
+    raw_scores = np.exp(-distances / 1.5)
+    return raw_scores / raw_scores.sum()
+
+
+def default_transition_matrix(p_stay=0.86):
+    """
+    Persistence-biased transition matrix for the 4 regimes.
+    Rows sum to 1.0.
+    """
+    if not (0.0 < p_stay < 1.0):
+        raise ValueError("p_stay must be between 0 and 1")
+
+    t = np.full((4, 4), (1.0 - p_stay) / 3.0, dtype=float)
+    np.fill_diagonal(t, p_stay)
+    return t
+
+
+def bayes_filter_probabilities(observed_probs, transition=None, eps=1e-12):
+    """
+    Treat `observed_probs[t]` as a likelihood vector and run a Bayesian filter.
+    """
+    if transition is None:
+        transition = default_transition_matrix()
+
+    filtered = np.zeros_like(observed_probs, dtype=float)
+    prior = np.array([0.25, 0.25, 0.25, 0.25], dtype=float)
+
+    for i in range(observed_probs.shape[0]):
+        likelihood = np.maximum(observed_probs[i], eps)
+        prior = prior @ transition
+        posterior = prior * likelihood
+        posterior_sum = posterior.sum()
+        if posterior_sum <= 0:
+            posterior = np.array([0.25, 0.25, 0.25, 0.25], dtype=float)
+        else:
+            posterior = posterior / posterior_sum
+        filtered[i] = posterior
+        prior = posterior
+
+    return filtered
+
+
+def blend_target_weights(prob_dist):
+    weights_bull = np.array([0.40, 0.20, 0.10, 0.10, 0.10, 0.10])
+    weights_neutral = np.array([0.25, 0.10, 0.20, 0.20, 0.15, 0.10])
+    weights_bear = np.array([0.10, 0.00, 0.25, 0.35, 0.20, 0.10])
+    weights_crisis = np.array([0.00, 0.00, 0.30, 0.40, 0.20, 0.10])
+
+    return (
+        prob_dist['Bull'] * weights_bull +
+        prob_dist['Neutral'] * weights_neutral +
+        prob_dist['Bear'] * weights_bear +
+        prob_dist['Crisis'] * weights_crisis
+    )
+
+
 def compute_rwra_probabilities(df):
     """
     Computes daily probabilities for Bull, Neutral, Bear, Crisis 
@@ -14,15 +86,12 @@ def compute_rwra_probabilities(df):
     liquidity_tight = df['Financial_Condition'] > 0
     volatility_high = df['^VIX'] > 20
     trend_bearish = df['^GSPC'] < df['^GSPC'].rolling(200).mean()
-    
+
+    observed = np.zeros((len(df), 4), dtype=float)
+
     for i in range(len(df)):
         vix_val = df['^VIX'].iloc[i]
-        
-        # Emergency Override
-        if vix_val > 35:
-            probs.iloc[i] = {'Bull': 0.0, 'Neutral': 0.0, 'Bear': 0.0, 'Crisis': 1.0}
-            continue
-            
+
         # Count bearish signals (0 to 5)
         bear_score = 0
         if yield_curve_inverted.iloc[i]: bear_score += 1
@@ -30,21 +99,12 @@ def compute_rwra_probabilities(df):
         if liquidity_tight.iloc[i]: bear_score += 1
         if volatility_high.iloc[i]: bear_score += 1
         if trend_bearish.iloc[i]: bear_score += 1
-        
-        # Simple probabilistic mapping based on bear signals
-        if bear_score == 0:
-            probs.iloc[i] = {'Bull': 0.70, 'Neutral': 0.20, 'Bear': 0.08, 'Crisis': 0.02}
-        elif bear_score == 1:
-            probs.iloc[i] = {'Bull': 0.50, 'Neutral': 0.30, 'Bear': 0.15, 'Crisis': 0.05}
-        elif bear_score == 2:
-            probs.iloc[i] = {'Bull': 0.30, 'Neutral': 0.40, 'Bear': 0.20, 'Crisis': 0.10}
-        elif bear_score == 3:
-            probs.iloc[i] = {'Bull': 0.10, 'Neutral': 0.35, 'Bear': 0.40, 'Crisis': 0.15}
-        elif bear_score == 4:
-            probs.iloc[i] = {'Bull': 0.05, 'Neutral': 0.15, 'Bear': 0.50, 'Crisis': 0.30}
-        else: # bear_score == 5
-            probs.iloc[i] = {'Bull': 0.00, 'Neutral': 0.05, 'Bear': 0.35, 'Crisis': 0.60}
-            
+
+        observed[i] = probability_from_bear_score(bear_score, vix_val)
+
+    filtered = bayes_filter_probabilities(observed)
+    probs[REGIMES] = filtered
+
     return probs.astype(float)
 
 def compute_metrics(series):
@@ -71,10 +131,10 @@ def run_rwra_backtest():
         df = df.dropna()
     except Exception as e:
         print(f"Error loading cached data: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
     if df.empty:
-        return None, None, None, None
+        return None, None, None, None, None
         
     probs = compute_rwra_probabilities(df)
     
@@ -87,28 +147,17 @@ def run_rwra_backtest():
     asset_rets['CSHI'] = df['CSHI'].pct_change() 
     asset_rets = asset_rets.fillna(0)
     
-    # Portfolio Weights Matrix per Regime
-    weights_bull = np.array([0.40, 0.20, 0.10, 0.10, 0.10, 0.10])
-    weights_neutral = np.array([0.25, 0.10, 0.20, 0.20, 0.15, 0.10])
-    weights_bear = np.array([0.10, 0.00, 0.25, 0.35, 0.20, 0.10])
-    weights_crisis = np.array([0.00, 0.00, 0.30, 0.40, 0.20, 0.10])
-    
     portfolio_returns = []
-    daily_blended_weights = []
+    target_weight_history = []
     action_triggered = []
     daily_turnover = []
     
     current_portfolio = np.zeros(6)
+    last_executed_probs = None
     
     for i in range(1, len(probs)):
-        prob_dist = probs.iloc[i-1] 
-        
-        target_weights = (
-            prob_dist['Bull'] * weights_bull +
-            prob_dist['Neutral'] * weights_neutral +
-            prob_dist['Bear'] * weights_bear +
-            prob_dist['Crisis'] * weights_crisis
-        )
+        prob_dist = probs.iloc[i-1]
+        target_weights = blend_target_weights(prob_dist)
         
         day_rets = asset_rets.iloc[i].values
         
@@ -117,6 +166,7 @@ def run_rwra_backtest():
             action_triggered.append(True)
             daily_turnover.append(1.0) # Initial entry is 100% turnover
             day_ret = np.dot(current_portfolio, day_rets)
+            last_executed_probs = prob_dist.copy()
             
             # Market drift
             current_portfolio = current_portfolio * (1 + day_rets)
@@ -124,12 +174,18 @@ def run_rwra_backtest():
                 current_portfolio = current_portfolio / np.sum(current_portfolio)
         else:
             turnover_delta = np.sum(np.abs(target_weights - current_portfolio))
+            prob_shift = 0.0
+            if last_executed_probs is not None:
+                prob_shift = float(np.sum(np.abs(prob_dist.values - last_executed_probs.values)))
+
+            should_rebalance = (turnover_delta > 0.05) or (prob_shift > 0.50) or (float(prob_dist['Crisis']) > 0.60)
             
-            if turnover_delta > 0.05: # Strict 5% Turnover Threshold
+            if should_rebalance:
                 action_triggered.append(True)
                 daily_turnover.append(turnover_delta)
                 t_cost = turnover_delta * 0.0010
                 current_portfolio = target_weights
+                last_executed_probs = prob_dist.copy()
             else:
                 action_triggered.append(False)
                 daily_turnover.append(0.0)
@@ -141,7 +197,7 @@ def run_rwra_backtest():
             if np.sum(current_portfolio) > 0:
                 current_portfolio = current_portfolio / np.sum(current_portfolio)
                 
-        daily_blended_weights.append(current_portfolio)
+        target_weight_history.append(target_weights.copy())
         portfolio_returns.append(day_ret)
         
     backtest_df = pd.DataFrame(index=probs.index[1:])
@@ -150,19 +206,34 @@ def run_rwra_backtest():
     backtest_df['Turnover'] = daily_turnover
     backtest_df['Cumulative_Return'] = (1 + backtest_df['RWRA_Return']).cumprod()
     
-    # Attach the weights matrix to backtest_df for transaction logging
-    weights_df = pd.DataFrame(daily_blended_weights, index=probs.index[1:], columns=['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI'])
+    # Persist target execution weights instead of post-drift holdings.
+    weights_df = pd.DataFrame(target_weight_history, index=probs.index[1:], columns=ASSET_COLUMNS)
     backtest_df = pd.concat([backtest_df, weights_df], axis=1)
     
     # 60/40 Benchmark based on real SPY/TLT
     backtest_df['60_40_Ret'] = asset_rets['SPY'].iloc[1:] * 0.6 + asset_rets['TLT'].iloc[1:] * 0.4
     backtest_df['60_40_CumRev'] = (1 + backtest_df['60_40_Ret']).cumprod()
     
-    latest_weights = dict(zip(['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI'], current_portfolio))
+    latest_target_weights = blend_target_weights(probs.iloc[-1])
+    latest_weights = dict(zip(ASSET_COLUMNS, latest_target_weights))
+    turnover_to_target = float(np.sum(np.abs(latest_target_weights - current_portfolio)))
+    prob_shift_to_last_exec = 0.0
+    if last_executed_probs is not None:
+        prob_shift_to_last_exec = float(np.sum(np.abs(probs.iloc[-1].values - last_executed_probs.values)))
     
     metrics = {
         'Strategy': compute_metrics(backtest_df['RWRA_Return']),
-        'Benchmark': compute_metrics(backtest_df['60_40_Ret'])
+        'Benchmark': compute_metrics(backtest_df['60_40_Ret']),
+        'Backtest': {
+            'Start_Date': backtest_df.index.min().strftime('%Y-%m-%d'),
+            'End_Date': backtest_df.index.max().strftime('%Y-%m-%d')
+        },
+        'Advisory': {
+            'Action_Needed': (turnover_to_target > 0.05) or (prob_shift_to_last_exec > 0.50) or (float(probs.iloc[-1]['Crisis']) > 0.60),
+            'Turnover_To_Target': turnover_to_target,
+            'Prob_Shift_To_Last_Exec': prob_shift_to_last_exec,
+            'Crisis_Prob': float(probs.iloc[-1]['Crisis'])
+        }
     }
     
     latest_prices = df[['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']].iloc[-1].to_dict()
