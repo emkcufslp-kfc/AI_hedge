@@ -512,13 +512,17 @@ elif page == "Comparative Strategy Audit":
     st.markdown("Side-by-side performance analysis of all active AI Hedging engines versus the 60/40 Market Benchmark.")
     import altair as alt
 
-    with st.spinner("Compiling cross-strategy performance data..."):
-        # Fetch both engines (leveraging cache)
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def fetch_comparative_data():
         from macro_backtest import run_backtest as run_macro
         from rwra_backtest import run_rwra_backtest as run_rwra
-        
+
         backtest_macro, _, metrics_macro, _ = run_macro()
         backtest_rwra, _, _, metrics_rwra, _ = run_rwra()
+        return backtest_macro, metrics_macro, backtest_rwra, metrics_rwra
+
+    with st.spinner("Compiling cross-strategy performance data..."):
+        backtest_macro, metrics_macro, backtest_rwra, metrics_rwra = fetch_comparative_data()
         
     if backtest_macro is None or backtest_rwra is None:
         st.error("Failed to load strategy metrics for comparison.")
