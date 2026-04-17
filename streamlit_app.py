@@ -92,11 +92,29 @@ if page == "Agent Consensus":
     # MOCK DATA
     tickers = ["NVDA", "TSLA", "PLTR", "AMD", "AAPL"]
 
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def fetch_active_positions_count():
+        try:
+            from rwra_backtest import run_rwra_backtest
+            _, _, latest_weights, _, _ = run_rwra_backtest()
+            if not latest_weights:
+                return None
+            return int(sum(1 for weight in latest_weights.values() if float(weight) > 1e-6))
+        except Exception:
+            return None
+
+    active_positions = fetch_active_positions_count()
+    active_positions_value = active_positions if active_positions is not None else 14
+    active_positions_label = "Live" if active_positions is not None else "Demo"
+
     cols = st.columns(4)
     with cols[0]:
         st.markdown('<div class="metric-card"><div class="metric-title">Total AUM</div><div class="metric-value">$1.24B</div><div class="trend-up">▲ 2.4%</div></div>', unsafe_allow_html=True)
     with cols[1]:
-        st.markdown('<div class="metric-card"><div class="metric-title">Active Positions</div><div class="metric-value">14</div><div class="trend-up">▲ 1</div></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-title">Active Positions</div><div class="metric-value">{active_positions_value}</div><div class="trend-up">{active_positions_label}</div></div>',
+            unsafe_allow_html=True
+        )
     with cols[2]:
         st.markdown('<div class="metric-card"><div class="metric-title">Pipeline Health</div><div class="metric-value">99.9%</div><div class="trend-up">Stable</div></div>', unsafe_allow_html=True)
     with cols[3]:
