@@ -4,6 +4,8 @@ import numpy as np
 
 ASSET_COLUMNS = ['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']
 REGIMES = ['Bull', 'Neutral', 'Bear', 'Crisis']
+INDICATOR_COLUMNS = ['T10Y2Y', 'HY_Spread', 'Financial_Condition', '^VIX', '^GSPC']
+PRICE_COLUMNS = ['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI', 'SHV']
 
 
 def probability_from_bear_score(bear_score, vix_value):
@@ -122,30 +124,67 @@ def compute_metrics(series):
     
     return {'CAGR': cagr, 'Vol': vol, 'Sharpe': sharpe, 'Max_DD': max_dd}
 
-def run_rwra_backtest():
+
+def build_asset_returns(market_df):
+    """
+    Build inception-aware daily returns for RWRA assets.
+    - DBMF: use live DBMF when available, otherwise a defensive proxy blend.
+    - CSHI: use CSHI when available, otherwise SHV as the cash proxy.
+    """
+    prices = market_df[PRICE_COLUMNS].copy().sort_index().ffill()
+    raw_rets = prices.pct_change()
+
+    dbmf_proxy = (
+        0.50 * raw_rets['TLT'].fillna(0.0) +
+        0.30 * raw_rets['GLD'].fillna(0.0) -
+        0.20 * raw_rets['SPY'].fillna(0.0)
+    )
+    dbmf_live_mask = market_df['DBMF'].notna()
+    dbmf_ret = raw_rets['DBMF'].where(dbmf_live_mask, dbmf_proxy)
+
+    cshi_live_mask = market_df['CSHI'].notna()
+    cash_ret = raw_rets['CSHI'].where(cshi_live_mask, raw_rets['SHV'])
+
+    asset_rets = pd.DataFrame(index=prices.index)
+    asset_rets['SPY'] = raw_rets['SPY']
+    asset_rets['QQQ'] = raw_rets['QQQ']
+    asset_rets['TLT'] = raw_rets['TLT']
+    asset_rets['DBMF'] = dbmf_ret
+    asset_rets['GLD'] = raw_rets['GLD']
+    asset_rets['CSHI'] = cash_ret
+    return asset_rets.fillna(0.0)
+
+
+def run_rwra_backtest(lookback_years=10):
     try:
         macro_df = pd.read_csv('data/historical_macro.csv', index_col=0, parse_dates=True)
         market_df = pd.read_csv('data/historical_market.csv', index_col=0, parse_dates=True)
-        
-        df = pd.merge(market_df, macro_df, left_index=True, right_index=True, how='left')
-        df = df.dropna()
+
+        merged = pd.merge(market_df, macro_df, left_index=True, right_index=True, how='left').sort_index()
     except Exception as e:
         print(f"Error loading cached data: {e}")
         return None, None, None, None, None
 
-    if df.empty:
+    if merged.empty:
         return None, None, None, None, None
-        
-    probs = compute_rwra_probabilities(df)
-    
-    asset_rets = pd.DataFrame()
-    asset_rets['SPY'] = df['SPY'].pct_change()
-    asset_rets['QQQ'] = df['QQQ'].pct_change()
-    asset_rets['TLT'] = df['TLT'].pct_change()
-    asset_rets['DBMF'] = df['DBMF'].pct_change()
-    asset_rets['GLD'] = df['GLD'].pct_change()
-    asset_rets['CSHI'] = df['CSHI'].pct_change() 
-    asset_rets = asset_rets.fillna(0)
+
+    regime_source = merged[INDICATOR_COLUMNS].copy().ffill().dropna()
+    if regime_source.empty:
+        return None, None, None, None, None
+
+    probs_full = compute_rwra_probabilities(regime_source)
+    asset_rets_full = build_asset_returns(market_df)
+
+    end_date = min(probs_full.index.max(), asset_rets_full.index.max())
+    start_date = end_date - pd.DateOffset(years=lookback_years)
+
+    common_idx = probs_full.index.intersection(asset_rets_full.index)
+    common_idx = common_idx[(common_idx >= start_date) & (common_idx <= end_date)]
+    if len(common_idx) < 2:
+        return None, None, None, None, None
+
+    probs = probs_full.loc[common_idx]
+    asset_rets = asset_rets_full.loc[common_idx]
     
     portfolio_returns = []
     target_weight_history = []
@@ -226,7 +265,8 @@ def run_rwra_backtest():
         'Benchmark': compute_metrics(backtest_df['60_40_Ret']),
         'Backtest': {
             'Start_Date': backtest_df.index.min().strftime('%Y-%m-%d'),
-            'End_Date': backtest_df.index.max().strftime('%Y-%m-%d')
+            'End_Date': backtest_df.index.max().strftime('%Y-%m-%d'),
+            'Lookback_Years': lookback_years
         },
         'Advisory': {
             'Action_Needed': (turnover_to_target > 0.05) or (prob_shift_to_last_exec > 0.50) or (float(probs.iloc[-1]['Crisis']) > 0.60),
@@ -236,6 +276,15 @@ def run_rwra_backtest():
         }
     }
     
-    latest_prices = df[['SPY', 'QQQ', 'TLT', 'DBMF', 'GLD', 'CSHI']].iloc[-1].to_dict()
+    latest_price_source = market_df[PRICE_COLUMNS].sort_index().ffill().loc[:end_date]
+    latest_price_row = latest_price_source.iloc[-1]
+    latest_prices = {
+        'SPY': float(latest_price_row['SPY']),
+        'QQQ': float(latest_price_row['QQQ']),
+        'TLT': float(latest_price_row['TLT']),
+        'DBMF': float(latest_price_row['DBMF']) if pd.notna(latest_price_row['DBMF']) else float(latest_price_row['GLD']),
+        'GLD': float(latest_price_row['GLD']),
+        'CSHI': float(latest_price_row['CSHI']) if pd.notna(latest_price_row['CSHI']) else float(latest_price_row['SHV'])
+    }
     
     return backtest_df, probs, latest_weights, metrics, latest_prices
