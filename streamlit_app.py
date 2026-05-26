@@ -73,11 +73,14 @@ st.markdown(
     .agent-verdict-bearish { color: #ff3333; font-weight:bold; }
     .agent-verdict-neutral { color: #8b949e; font-weight:bold; }
     .pit-banner {
-        background: linear-gradient(90deg, rgba(0, 242, 255, 0.12), rgba(210, 168, 255, 0.12));
-        border: 1px solid rgba(0, 242, 255, 0.35);
-        border-radius: 12px;
-        padding: 14px 18px;
-        margin-bottom: 18px;
+        background:
+            radial-gradient(circle at top left, rgba(0, 242, 255, 0.16), transparent 36%),
+            linear-gradient(135deg, rgba(9, 16, 24, 0.96), rgba(19, 10, 28, 0.96));
+        border: 1px solid rgba(0, 242, 255, 0.32);
+        box-shadow: 0 18px 35px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
     }
     .pit-banner-title {
         color: #00f2ff;
@@ -90,6 +93,69 @@ st.markdown(
     .pit-banner-body {
         color: #f0f6fc;
         font-size: 0.95rem;
+        line-height: 1.55;
+    }
+    .page-shell {
+        background:
+            radial-gradient(circle at top right, rgba(0, 242, 255, 0.08), transparent 28%),
+            linear-gradient(180deg, rgba(8, 12, 18, 0.92), rgba(5, 7, 12, 0.94));
+        border: 1px solid rgba(88, 166, 255, 0.12);
+        border-radius: 20px;
+        padding: 18px 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 22px 40px rgba(0, 0, 0, 0.22);
+    }
+    .section-kicker {
+        color: #8b949e;
+        text-transform: uppercase;
+        letter-spacing: 2.5px;
+        font-size: 0.76rem;
+        margin-bottom: 8px;
+    }
+    .sidebar-shell {
+        background:
+            radial-gradient(circle at top left, rgba(0, 242, 255, 0.10), transparent 32%),
+            linear-gradient(165deg, rgba(13, 18, 25, 0.96), rgba(7, 10, 16, 0.98));
+        border: 1px solid rgba(88, 166, 255, 0.14);
+        border-radius: 18px;
+        padding: 14px 14px 10px 14px;
+        margin: 8px 0 16px 0;
+        box-shadow: 0 18px 32px rgba(0, 0, 0, 0.28);
+    }
+    .sidebar-pit-title {
+        color: #f0f6fc;
+        font-weight: 800;
+        font-size: 1rem;
+        margin-bottom: 4px;
+    }
+    .sidebar-pit-label {
+        color: #00f2ff;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 0.72rem;
+        margin-bottom: 8px;
+    }
+    .sidebar-pit-copy {
+        color: #9fb0c3;
+        font-size: 0.84rem;
+        line-height: 1.5;
+        margin-bottom: 12px;
+    }
+    .sidebar-pit-active {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(0, 242, 255, 0.08);
+        border: 1px solid rgba(0, 242, 255, 0.2);
+        color: #f0f6fc;
+        font-size: 0.84rem;
+    }
+    .sidebar-nav-label {
+        color: #8b949e;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 0.72rem;
+        margin: 2px 0 10px 0;
     }
 </style>
 """,
@@ -193,10 +259,15 @@ def init_pit_state():
     if "pit_date_picker" not in st.session_state:
         st.session_state["pit_date_picker"] = st.session_state["pit_committed_date"]
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### Point-In-Time (PIT)")
-    st.sidebar.caption(
-        "Display-only control. This changes which historical dashboard snapshot is shown and does not change model logic or backend modules."
+    st.sidebar.markdown(
+        """
+<div class="sidebar-shell">
+    <div class="sidebar-pit-label">Point-In-Time</div>
+    <div class="sidebar-pit-title">Historical Dashboard Lens</div>
+    <div class="sidebar-pit-copy">Display-only control. This changes which historical snapshot the dashboard shows and does not modify model logic or backend modules.</div>
+</div>
+""",
+        unsafe_allow_html=True,
     )
     st.sidebar.date_input(
         "PIT Date",
@@ -214,7 +285,13 @@ def init_pit_state():
     resolved_global_date, global_reason = resolve_pit_date(pit_calendar, requested_date)
 
     st.sidebar.markdown(
-        f"**Active PIT:** `{format_date(resolved_global_date)}`",
+        f"""
+<div class="sidebar-pit-active">
+    <strong>Active PIT</strong><br>
+    {format_date(resolved_global_date)}
+</div>
+""",
+        unsafe_allow_html=True,
     )
     if global_reason != "exact":
         st.sidebar.caption(f"Requested `{requested_date}` and resolved to the nearest valid date.")
@@ -243,12 +320,14 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
+requested_pit_date, global_pit_date = init_pit_state()
+
+st.sidebar.markdown('<div class="sidebar-nav-label">Navigation</div>', unsafe_allow_html=True)
 page = st.sidebar.radio(
     "Navigation",
     ["Agent Consensus", "Macro Regime Model", "Final RWRA Engine", "Comparative Strategy Audit"],
+    label_visibility="collapsed",
 )
-
-requested_pit_date, global_pit_date = init_pit_state()
 
 
 if page == "Agent Consensus":
