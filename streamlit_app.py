@@ -30,6 +30,38 @@ st.markdown(
         color: #f0f6fc;
         font-family: 'Inter', -apple-system, sans-serif;
     }
+    [data-testid="stAppViewContainer"] {
+        background:
+            radial-gradient(circle at top right, rgba(0, 242, 255, 0.06), transparent 22%),
+            linear-gradient(180deg, #020304 0%, #000000 100%);
+    }
+    [data-testid="stHeader"] {
+        background: rgba(0, 0, 0, 0.96);
+        border-bottom: 1px solid rgba(88, 166, 255, 0.08);
+    }
+    [data-testid="stToolbar"] {
+        background: transparent;
+    }
+    [data-testid="stSidebar"] {
+        background:
+            linear-gradient(180deg, rgba(10, 14, 20, 0.98), rgba(4, 7, 11, 0.98));
+        border-right: 1px solid rgba(88, 166, 255, 0.10);
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        background:
+            radial-gradient(circle at top left, rgba(0, 242, 255, 0.08), transparent 24%),
+            linear-gradient(180deg, rgba(10, 14, 20, 0.98), rgba(4, 7, 11, 0.98));
+    }
+    [data-testid="stSidebar"] * {
+        color: #d7e2f0;
+    }
+    [data-testid="stSidebar"] hr {
+        border-color: rgba(88, 166, 255, 0.14);
+    }
+    .block-container {
+        padding-top: 1.75rem;
+        padding-bottom: 2.5rem;
+    }
     .metric-card {
         background: linear-gradient(145deg, #0f0f0f, #050505);
         border: 1px solid rgba(0, 242, 255, 0.2);
@@ -169,6 +201,63 @@ st.markdown(
         letter-spacing: 2px;
         font-size: 0.72rem;
         margin: 2px 0 10px 0;
+    }
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="input"] > div,
+    [data-testid="stDateInputField"],
+    [data-testid="stTextInputRootElement"] {
+        background: linear-gradient(180deg, rgba(12, 16, 22, 0.98), rgba(8, 11, 17, 0.98)) !important;
+        color: #f0f6fc !important;
+        border: 1px solid rgba(88, 166, 255, 0.20) !important;
+        border-radius: 12px !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+    div[data-baseweb="select"] input,
+    div[data-baseweb="select"] span,
+    div[data-baseweb="input"] input,
+    div[data-baseweb="input"] span,
+    [data-testid="stDateInputField"] input {
+        color: #f0f6fc !important;
+        -webkit-text-fill-color: #f0f6fc !important;
+    }
+    div[data-baseweb="select"] svg,
+    div[data-baseweb="input"] svg {
+        fill: #8bb8ff !important;
+    }
+    div[data-baseweb="popover"] {
+        background: #0b1118 !important;
+        color: #f0f6fc !important;
+        border: 1px solid rgba(88, 166, 255, 0.18) !important;
+    }
+    ul[role="listbox"] {
+        background: #0b1118 !important;
+        border: 1px solid rgba(88, 166, 255, 0.18) !important;
+    }
+    ul[role="listbox"] li {
+        background: transparent !important;
+        color: #f0f6fc !important;
+    }
+    ul[role="listbox"] li:hover {
+        background: rgba(0, 242, 255, 0.10) !important;
+    }
+    button[kind="secondary"],
+    [data-testid="baseButton-secondary"] {
+        background: linear-gradient(180deg, rgba(9, 16, 24, 0.98), rgba(12, 25, 36, 0.98)) !important;
+        color: #f0f6fc !important;
+        border: 1px solid rgba(0, 242, 255, 0.26) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+    }
+    button[kind="secondary"]:hover,
+    [data-testid="baseButton-secondary"]:hover {
+        border-color: rgba(0, 242, 255, 0.42) !important;
+        color: #00f2ff !important;
+    }
+    [data-testid="stSelectbox"] label,
+    [data-testid="stDateInput"] label {
+        color: #9fb0c3 !important;
+        font-size: 0.84rem !important;
+        letter-spacing: 0.02em;
     }
 </style>
 """,
