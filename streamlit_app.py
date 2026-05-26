@@ -1,9 +1,22 @@
 import datetime
 
-import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+try:
+    import altair as alt
+    ALTAIR_IMPORT_ERROR = None
+except Exception as exc:
+    alt = None
+    ALTAIR_IMPORT_ERROR = exc
+
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_IMPORT_ERROR = None
+except Exception as exc:
+    plt = None
+    MATPLOTLIB_IMPORT_ERROR = exc
 
 
 st.set_page_config(page_title="Hedge Fund AI Dashboard", page_icon="HF", layout="wide")
@@ -305,6 +318,53 @@ def get_prices_for_date(columns, requested_date):
     return market_df.loc[resolved_date, columns], resolved_date
 
 
+def render_altair_unavailable_notice():
+    if ALTAIR_IMPORT_ERROR is not None:
+        st.info(
+            "Advanced interactive charts are using a fallback renderer because the installed Altair package is not compatible with this Python runtime."
+        )
+
+
+def render_matplotlib_chart(data, kind="line", stacked=False, height=3.6):
+    if plt is None:
+        st.dataframe(data, use_container_width=True)
+        return
+
+    frame = data.copy()
+    if not isinstance(frame, pd.DataFrame):
+        frame = pd.DataFrame(frame)
+
+    fig, ax = plt.subplots(figsize=(10, height))
+    fig.patch.set_facecolor("#000000")
+    ax.set_facecolor("#050505")
+
+    if kind == "area":
+        x_values = frame.index
+        series_values = [frame[col].astype(float).values for col in frame.columns]
+        colors = ["#00f2ff", "#00ff88", "#d2a8ff", "#ff3333", "#8b949e", "#ffcc00"]
+        ax.stackplot(x_values, series_values, labels=frame.columns, colors=colors[: len(frame.columns)], alpha=0.75)
+        if not stacked:
+            for idx, column in enumerate(frame.columns):
+                ax.plot(x_values, frame[column].astype(float).values, color=colors[idx % len(colors)], linewidth=1.1)
+    else:
+        colors = ["#00f2ff", "#00ff88", "#d2a8ff", "#ff3333", "#8b949e", "#ffcc00"]
+        for idx, column in enumerate(frame.columns):
+            ax.plot(frame.index, frame[column].astype(float).values, label=column, color=colors[idx % len(colors)], linewidth=2)
+
+    ax.grid(color="white", alpha=0.08, linewidth=0.8)
+    for spine in ax.spines.values():
+        spine.set_color("#1f2937")
+    ax.tick_params(colors="#c9d1d9", labelsize=8)
+    if len(frame.columns) > 1:
+        legend = ax.legend(facecolor="#0b0f14", edgecolor="#1f2937", fontsize=8)
+        for text in legend.get_texts():
+            text.set_color("#f0f6fc")
+
+    fig.tight_layout()
+    st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
+
+
 st.sidebar.markdown(
     '<h1 style="color:#00f2ff; font-size:1.5rem; text-shadow: 0 0 10px rgba(0,242,255,0.5);">CIO TERMINAL</h1>',
     unsafe_allow_html=True,
@@ -413,7 +473,7 @@ if page == "Agent Consensus":
         st.subheader("Ingested Candles as of PIT Date")
         chart_seed = pd.Series(rng.normal(0, 1, 20)).cumsum() + 100
         chart_data = pd.DataFrame({"Close": chart_seed})
-        st.line_chart(chart_data)
+        render_matplotlib_chart(chart_data, kind="line", height=2.6)
 
     st.markdown("---")
     st.markdown(
@@ -536,7 +596,7 @@ elif page == "Macro Regime Model":
                 "60/40 Benchmark": pit_backtest["60_40_CumRev"],
             }
         )
-        st.line_chart(plot_df)
+        render_matplotlib_chart(plot_df, kind="line", height=3.2)
 
         st.markdown("---")
         with st.expander("How the Macro Regime Strategy Works", expanded=False):
@@ -736,7 +796,7 @@ elif page == "Final RWRA Engine":
                     "60/40 Benchmark": pit_backtest["60_40_CumRev"],
                 }
             )
-            st.line_chart(plot_df)
+            render_matplotlib_chart(plot_df, kind="line", height=3.2)
 
         st.markdown("---")
         st.subheader("Macro Regime Turning Points and Black Swan Ledger")
@@ -760,37 +820,44 @@ elif page == "Final RWRA Engine":
         swan_df = pd.DataFrame(list(swan_events.items()), columns=["Date", "Event_Narrative"])
         swan_df["Date"] = pd.to_datetime(swan_df["Date"])
         swan_df = swan_df[swan_df["Date"] <= resolved_date]
-
-        area_chart = alt.Chart(melted_probs).mark_area(opacity=0.7).encode(
-            x=alt.X("Date:T", title="Lookback Timeline"),
-            y=alt.Y("Probability:Q", stack="normalize", title="Model Probability Allocation"),
-            color=alt.Color(
-                "Regime:N",
-                scale=alt.Scale(
-                    domain=["Bull", "Neutral", "Bear", "Crisis"],
-                    range=["#00ff88", "#8b949e", "#d2a8ff", "#ff3333"],
+        if alt is not None:
+            area_chart = alt.Chart(melted_probs).mark_area(opacity=0.7).encode(
+                x=alt.X("Date:T", title="Lookback Timeline"),
+                y=alt.Y("Probability:Q", stack="normalize", title="Model Probability Allocation"),
+                color=alt.Color(
+                    "Regime:N",
+                    scale=alt.Scale(
+                        domain=["Bull", "Neutral", "Bear", "Crisis"],
+                        range=["#00ff88", "#8b949e", "#d2a8ff", "#ff3333"],
+                    ),
                 ),
-            ),
-            tooltip=["Date:T", "Regime:N", alt.Tooltip("Probability:Q", format=".1%")],
-        ).properties(height=500).interactive(bind_y=False)
+                tooltip=["Date:T", "Regime:N", alt.Tooltip("Probability:Q", format=".1%")],
+            ).properties(height=500).interactive(bind_y=False)
 
-        swan_rules = alt.Chart(swan_df).mark_rule(color="#ffcc00", strokeWidth=2, strokeDash=[4, 4]).encode(
-            x="Date:T",
-            tooltip=["Date:T", "Event_Narrative:N"],
-        )
+            swan_rules = alt.Chart(swan_df).mark_rule(color="#ffcc00", strokeWidth=2, strokeDash=[4, 4]).encode(
+                x="Date:T",
+                tooltip=["Date:T", "Event_Narrative:N"],
+            )
 
-        swan_text = alt.Chart(swan_df).mark_text(
-            align="left",
-            baseline="middle",
-            dx=5,
-            dy=-210,
-            color="#ffcc00",
-            fontSize=12,
-            angle=270,
-            fontWeight="bold",
-        ).encode(x="Date:T", text="Event_Narrative:N")
+            swan_text = alt.Chart(swan_df).mark_text(
+                align="left",
+                baseline="middle",
+                dx=5,
+                dy=-210,
+                color="#ffcc00",
+                fontSize=12,
+                angle=270,
+                fontWeight="bold",
+            ).encode(x="Date:T", text="Event_Narrative:N")
 
-        st.altair_chart(alt.layer(area_chart, swan_rules, swan_text).resolve_scale(y="shared"), use_container_width=True)
+            st.altair_chart(alt.layer(area_chart, swan_rules, swan_text).resolve_scale(y="shared"), use_container_width=True)
+        else:
+            render_altair_unavailable_notice()
+            fallback_probs = plot_probs.set_index("Date")[["Bull", "Neutral", "Bear", "Crisis"]]
+            render_matplotlib_chart(fallback_probs, kind="area", stacked=True, height=3.8)
+            if not swan_df.empty:
+                st.caption("Black Swan reference events through the PIT date")
+                st.dataframe(swan_df.sort_values("Date"), use_container_width=True, hide_index=True)
 
         with st.expander("Audit the algorithm's posture during these exact Black Swan events", expanded=False):
             audit_df = pd.merge(swan_df, pit_probs, left_on="Date", right_index=True, how="inner")
@@ -965,19 +1032,23 @@ elif page == "Comparative Strategy Audit":
         st.markdown("---")
         st.subheader("Multi-Strategy Cumulative Performance")
         melted_equity = merged_equity.rename_axis("Date").reset_index().melt("Date", var_name="Strategy", value_name="Cumulative Return")
-        line_chart = alt.Chart(melted_equity).mark_line(strokeWidth=2).encode(
-            x=alt.X("Date:T", title="Date"),
-            y=alt.Y("Cumulative Return:Q", title="Portfolio Value"),
-            color=alt.Color(
-                "Strategy:N",
-                scale=alt.Scale(
-                    domain=["RWRA Engine", "Macro Regime", "60/40 Benchmark"],
-                    range=["#d2a8ff", "#00f2ff", "#8b949e"],
+        if alt is not None:
+            line_chart = alt.Chart(melted_equity).mark_line(strokeWidth=2).encode(
+                x=alt.X("Date:T", title="Date"),
+                y=alt.Y("Cumulative Return:Q", title="Portfolio Value"),
+                color=alt.Color(
+                    "Strategy:N",
+                    scale=alt.Scale(
+                        domain=["RWRA Engine", "Macro Regime", "60/40 Benchmark"],
+                        range=["#d2a8ff", "#00f2ff", "#8b949e"],
+                    ),
                 ),
-            ),
-            tooltip=["Date:T", "Strategy:N", alt.Tooltip("Cumulative Return:Q", format=".2f")],
-        ).properties(height=400).interactive(bind_y=False)
-        st.altair_chart(line_chart, use_container_width=True)
+                tooltip=["Date:T", "Strategy:N", alt.Tooltip("Cumulative Return:Q", format=".2f")],
+            ).properties(height=400).interactive(bind_y=False)
+            st.altair_chart(line_chart, use_container_width=True)
+        else:
+            render_altair_unavailable_notice()
+            render_matplotlib_chart(merged_equity, kind="line", height=3.4)
 
         st.markdown("---")
         st.subheader("Strategy Alpha Persistence")
@@ -986,16 +1057,19 @@ elif page == "Comparative Strategy Audit":
         alpha_df["RWRA Alpha"] = merged_equity["RWRA Engine"] - merged_equity["60/40 Benchmark"]
         alpha_df["Macro Alpha"] = merged_equity["Macro Regime"] - merged_equity["60/40 Benchmark"]
         melted_alpha = alpha_df.rename_axis("Date").reset_index().melt("Date", var_name="Strategy", value_name="Alpha")
-        alpha_chart = alt.Chart(melted_alpha).mark_area(opacity=0.4, line={"color": "white", "strokeWidth": 1}).encode(
-            x=alt.X("Date:T", title="Date"),
-            y=alt.Y("Alpha:Q", title="Alpha (vs 60/40)"),
-            color=alt.Color(
-                "Strategy:N",
-                scale=alt.Scale(domain=["RWRA Alpha", "Macro Alpha"], range=["#d2a8ff", "#00f2ff"]),
-            ),
-            tooltip=["Date:T", "Strategy:N", alt.Tooltip("Alpha:Q", format=".2f")],
-        ).properties(height=400).interactive(bind_y=False)
-        st.altair_chart(alpha_chart, use_container_width=True)
+        if alt is not None:
+            alpha_chart = alt.Chart(melted_alpha).mark_area(opacity=0.4, line={"color": "white", "strokeWidth": 1}).encode(
+                x=alt.X("Date:T", title="Date"),
+                y=alt.Y("Alpha:Q", title="Alpha (vs 60/40)"),
+                color=alt.Color(
+                    "Strategy:N",
+                    scale=alt.Scale(domain=["RWRA Alpha", "Macro Alpha"], range=["#d2a8ff", "#00f2ff"]),
+                ),
+                tooltip=["Date:T", "Strategy:N", alt.Tooltip("Alpha:Q", format=".2f")],
+            ).properties(height=400).interactive(bind_y=False)
+            st.altair_chart(alpha_chart, use_container_width=True)
+        else:
+            render_matplotlib_chart(alpha_df, kind="area", stacked=False, height=3.4)
 
         st.markdown("---")
         st.subheader("CIO Verdict")
