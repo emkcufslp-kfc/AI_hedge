@@ -355,9 +355,10 @@ def init_pit_state():
 
     earliest_date = pit_calendar.min().date()
     latest_date = pit_calendar.max().date()
+    today_date = datetime.date.today()
 
     if "pit_committed_date" not in st.session_state:
-        st.session_state["pit_committed_date"] = latest_date
+        st.session_state["pit_committed_date"] = today_date
     if "pit_date_picker" not in st.session_state:
         st.session_state["pit_date_picker"] = st.session_state["pit_committed_date"]
 
@@ -374,11 +375,12 @@ def init_pit_state():
     st.sidebar.date_input(
         "PIT Date",
         min_value=earliest_date,
-        max_value=latest_date,
+        max_value=today_date,
         key="pit_date_picker",
     )
+    st.sidebar.caption(f"Today: {today_date}")
     st.sidebar.caption(f"Latest available data date: {latest_date}")
-    st.sidebar.caption("If a selected date is unavailable, the dashboard resolves to the nearest prior valid date.")
+    st.sidebar.caption("You can select any date up to today. If it is unavailable, the dashboard resolves to the nearest prior valid date.")
 
     if st.sidebar.button("Update", use_container_width=True):
         st.session_state["pit_committed_date"] = st.session_state["pit_date_picker"]
