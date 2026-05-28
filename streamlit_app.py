@@ -409,6 +409,37 @@ def get_prices_for_date(columns, requested_date):
     return market_df.loc[resolved_date, columns], resolved_date
 
 
+RWRA_ASSET_ORDER = ["SPY", "QQQ", "TLT", "DBMF", "GLD", "CSHI"]
+RWRA_REGIME_WEIGHT_VECTORS = {
+    "Bull": np.array([0.40, 0.20, 0.10, 0.10, 0.10, 0.10]),
+    "Neutral": np.array([0.25, 0.10, 0.20, 0.20, 0.15, 0.10]),
+    "Bear": np.array([0.10, 0.00, 0.25, 0.35, 0.20, 0.10]),
+    "Crisis": np.array([0.00, 0.00, 0.30, 0.40, 0.20, 0.10]),
+}
+
+
+def compute_rwra_target_weights(prob_row):
+    target_vector = (
+        float(prob_row["Bull"]) * RWRA_REGIME_WEIGHT_VECTORS["Bull"] +
+        float(prob_row["Neutral"]) * RWRA_REGIME_WEIGHT_VECTORS["Neutral"] +
+        float(prob_row["Bear"]) * RWRA_REGIME_WEIGHT_VECTORS["Bear"] +
+        float(prob_row["Crisis"]) * RWRA_REGIME_WEIGHT_VECTORS["Crisis"]
+    )
+    return pd.Series(target_vector, index=RWRA_ASSET_ORDER)
+
+
+def build_rwra_execution_probability_frame(probs, execution_index):
+    aligned_probs = probs.shift(1).reindex(execution_index)
+    signal_dates = pd.Series(probs.index[:-1], index=probs.index[1:])
+    aligned_signal_dates = signal_dates.reindex(execution_index)
+    return aligned_probs, aligned_signal_dates
+
+
+def build_rwra_target_weight_frame(prob_df):
+    target_rows = [compute_rwra_target_weights(prob_df.loc[idx]) for idx in prob_df.index]
+    return pd.DataFrame(target_rows, index=prob_df.index)
+
+
 def render_altair_unavailable_notice():
     if ALTAIR_IMPORT_ERROR is not None:
         st.info(
@@ -647,7 +678,7 @@ elif page == "Macro Regime Model":
         if current_action:
             st.error(
                 "Rebalance triggered on the PIT date. The portfolio weights breached the >5% physical drift tolerance boundary.",
-                icon="⚠️",
+                icon="?��?",
             )
         else:
             st.success(
@@ -781,13 +812,16 @@ elif page == "Final RWRA Engine":
     if backtest_df is None or backtest_df.empty or probs is None or probs.empty:
         st.error("Failed to fetch historical actual data for RWRA.")
     else:
-        rwra_dates = backtest_df.index.intersection(probs.index).sort_values()
+        execution_probs, execution_signal_dates = build_rwra_execution_probability_frame(probs, backtest_df.index)
+        rwra_dates = backtest_df.index.intersection(execution_probs.dropna().index).sort_values()
         resolved_date, resolution_reason = resolve_pit_date(rwra_dates, requested_pit_date)
         pit_backtest = backtest_df.loc[:resolved_date].copy()
         pit_probs = probs.loc[:resolved_date].copy()
-        curr_probs = pit_probs.loc[resolved_date]
+        pit_execution_probs = execution_probs.loc[:resolved_date].copy()
+        curr_probs = pit_execution_probs.loc[resolved_date]
+        signal_date = execution_signal_dates.loc[resolved_date]
         current_action = bool(pit_backtest.loc[resolved_date, "Action_Triggered"])
-        current_weights = pit_backtest.loc[resolved_date, ["SPY", "QQQ", "TLT", "DBMF", "GLD", "CSHI"]].to_dict()
+        current_target_weights = compute_rwra_target_weights(curr_probs).to_dict()
         rwra_metrics = {
             "Strategy": compute_display_metrics(pit_backtest["RWRA_Return"]),
             "Benchmark": compute_display_metrics(pit_backtest["60_40_Ret"]),
@@ -798,10 +832,11 @@ elif page == "Final RWRA Engine":
             requested_pit_date,
             resolved_date,
             resolution_reason,
-            "Display layer only. Underlying RWRA modules and strategy logic remain unchanged.",
+            f"Execution view for {format_date(resolved_date)} using the latest signal snapshot available on {format_date(signal_date)}. Underlying RWRA modules and strategy logic remain unchanged.",
         )
 
-        st.subheader("PIT Regime Probabilities")
+        st.subheader("Signal Probabilities Used For PIT Execution")
+        st.caption(f"Execution date: {format_date(resolved_date)} | Signal snapshot date: {format_date(signal_date)}")
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.markdown(
@@ -828,17 +863,17 @@ elif page == "Final RWRA Engine":
         st.subheader("Action Required Console")
         if current_action:
             st.error(
-                "Rebalance triggered on the PIT date. The portfolio breached the >5% physical drift tolerance boundary.",
+                "Rebalance triggered for the PIT execution date. The target allocation breached the >5% physical drift tolerance boundary.",
                 icon="⚠️",
             )
         else:
             st.success(
-                "Hold status on the PIT date. The portfolio remained within the 5% tolerance drift band.",
+                "Hold status for the PIT execution date. The target allocation remained within the 5% tolerance drift band.",
                 icon="✅",
             )
 
         with st.expander("Target Ticket Execution Pricing", expanded=False):
-            st.caption(f"Price snapshot date: {format_date(rwra_price_date)}")
+            st.caption(f"Execution price snapshot date: {format_date(rwra_price_date)}")
             t1, t2, t3, t4, t5, t6 = st.columns(6)
             t1.metric("SPY", f"${rwra_prices['SPY']:.2f}")
             t2.metric("QQQ", f"${rwra_prices['QQQ']:.2f}")
@@ -874,8 +909,8 @@ elif page == "Final RWRA Engine":
             "CSHI": "CSHI (High Yield Cash)",
         }
         with col1:
-            st.subheader("PIT Weights")
-            for asset, weight in current_weights.items():
+            st.subheader("Target Weights For PIT Execution")
+            for asset, weight in current_target_weights.items():
                 st.markdown(f"**{weight_names_map.get(asset, asset)}**: {weight * 100:.1f}%")
                 st.progress(float(weight))
 
@@ -891,7 +926,7 @@ elif page == "Final RWRA Engine":
 
         st.markdown("---")
         st.subheader("Macro Regime Turning Points and Black Swan Ledger")
-        st.markdown("*Interactive timeline filtered through the PIT date.*")
+        st.markdown("*Historical probability timeline filtered through the PIT date. This section shows same-day model state, not execution-shifted allocations.*")
 
         plot_probs = pit_probs.copy()
         plot_probs.index.name = "Date"
@@ -970,11 +1005,11 @@ elif page == "Final RWRA Engine":
                 **Regime-Weighted Risk Allocation (RWRA)** replaces static 60/40 logic with a daily probabilistic blend across Bull, Neutral, Bear, and Crisis regimes.
 
                 Core variables:
-                1. **Yield Curve (`T10Y2Y`)**
-                2. **Credit Spreads (`BAMLH0A0HYM2`)**
-                3. **Liquidity (`NFCI`)**
-                4. **Volatility (`^VIX`)**
-                5. **Price Trend (`^GSPC`)**
+                1. **Yield Curve (T10Y2Y)**
+                2. **Credit Spreads (BAMLH0A0HYM2)**
+                3. **Liquidity (NFCI)**
+                4. **Volatility (^VIX)**
+                5. **Price Trend (^GSPC)**
 
                 If **VIX > 35**, the system locks to 100% Crisis.
                 """
@@ -987,12 +1022,15 @@ elif page == "Final RWRA Engine":
         if recent_log.empty:
             recent_log = action_log.tail(5).copy()
 
+        recent_execution_probs = pit_execution_probs.loc[recent_log.index].copy()
+        recent_target_weights = build_rwra_target_weight_frame(recent_execution_probs)
         log_df = pd.merge(
-            pit_probs,
-            recent_log[["RWRA_Return", "SPY", "QQQ", "TLT", "DBMF", "GLD", "CSHI", "Turnover"]],
+            recent_execution_probs,
+            recent_log[["RWRA_Return", "Turnover"]],
             left_index=True,
             right_index=True,
         )
+        log_df = pd.concat([log_df, recent_target_weights], axis=1)
         log_df = log_df.rename(
             columns={
                 "SPY": "SPY (S&P 500)",
@@ -1021,11 +1059,13 @@ elif page == "Final RWRA Engine":
         log_df["Turnover"] = (log_df["Turnover"] * 100).map("{:.1f}%".format)
         log_df = log_df.rename_axis("Date").reset_index()
         log_df["Execution Date"] = log_df["Date"].dt.strftime("%b %d, %Y")
+        log_df["Signal Date"] = log_df["Date"].map(lambda x: format_date(execution_signal_dates.loc[pd.Timestamp(x)]))
 
         st.dataframe(
             log_df[
                 [
                     "Execution Date",
+                    "Signal Date",
                     "Bull",
                     "Neutral",
                     "Bear",
@@ -1044,7 +1084,7 @@ elif page == "Final RWRA Engine":
             hide_index=True,
         )
 
-        st.markdown("*Emergency protocol note: if VIX > 35, probabilities lock to 100% Crisis. PIT filtering is UI-only.*")
+        st.markdown("*Emergency protocol note: if VIX > 35, probabilities lock to 100% Crisis. Execution weights and action status on this page are aligned to the same PIT execution date.*")
 
 
 elif page == "Comparative Strategy Audit":
@@ -1172,3 +1212,4 @@ elif page == "Comparative Strategy Audit":
             st.info("Macro Regime leads on a PIT basis, delivering the stronger return profile through the selected date.")
 
         st.markdown("*All comparison outputs are filtered at the dashboard layer only. Backend strategy modules are unchanged.*")
+
